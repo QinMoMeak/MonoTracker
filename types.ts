@@ -1,5 +1,6 @@
 export type Language = 'zh-CN' | 'zh-TW' | 'en' | 'ja';
 export type ThemeColor = 'blue' | 'green' | 'violet' | 'orange' | 'rose';
+export type AppearanceMode = 'light' | 'dark' | 'system';
 export type Tab = 'owned' | 'wishlist' | 'profile';
 export type CategoryType = 'digital' | 'fashion' | 'home' | 'beauty' | 'books' | 'sports' | 'other';
 
@@ -30,4 +31,5 @@ export interface AppState {
   items: Item[];
   language: Language;
   theme: ThemeColor;
+  appearance: AppearanceMode;
 }

@@ -24,30 +24,63 @@ import {
   Dumbbell,
   Box,
   PieChart,
-  LayoutGrid
+  LayoutGrid,
+  Moon,
+  Sun,
+  Monitor
 } from 'lucide-react';
 
 export const ICONS = {
   Home, Heart, User, Plus, Calendar, DollarSign, Tag, LinkIcon, ImageIcon, Sparkles, Download, Upload, Globe, Palette, Trash2, Edit3, Activity,
-  Smartphone, Shirt, Armchair, BookOpen, Dumbbell, Box, PieChart, LayoutGrid
+  Smartphone, Shirt, Armchair, BookOpen, Dumbbell, Box, PieChart, LayoutGrid, Moon, Sun, Monitor
 };
 
 export const CATEGORY_CONFIG: Record<CategoryType, { icon: any, labelKey: string, color: string, bg: string }> = {
-  digital: { icon: Smartphone, labelKey: 'catDigital', color: 'text-blue-500', bg: 'bg-blue-100' },
-  fashion: { icon: Shirt, labelKey: 'catFashion', color: 'text-rose-500', bg: 'bg-rose-100' },
-  home: { icon: Armchair, labelKey: 'catHome', color: 'text-orange-500', bg: 'bg-orange-100' },
-  beauty: { icon: Sparkles, labelKey: 'catBeauty', color: 'text-pink-500', bg: 'bg-pink-100' },
-  books: { icon: BookOpen, labelKey: 'catBooks', color: 'text-amber-500', bg: 'bg-amber-100' },
-  sports: { icon: Dumbbell, labelKey: 'catSports', color: 'text-emerald-500', bg: 'bg-emerald-100' },
-  other: { icon: Box, labelKey: 'catOther', color: 'text-gray-500', bg: 'bg-gray-100' },
+  digital: { icon: Smartphone, labelKey: 'catDigital', color: 'text-blue-500 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30' },
+  fashion: { icon: Shirt, labelKey: 'catFashion', color: 'text-rose-500 dark:text-rose-400', bg: 'bg-rose-100 dark:bg-rose-900/30' },
+  home: { icon: Armchair, labelKey: 'catHome', color: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30' },
+  beauty: { icon: Sparkles, labelKey: 'catBeauty', color: 'text-pink-500 dark:text-pink-400', bg: 'bg-pink-100 dark:bg-pink-900/30' },
+  books: { icon: BookOpen, labelKey: 'catBooks', color: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30' },
+  sports: { icon: Dumbbell, labelKey: 'catSports', color: 'text-emerald-500 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30' },
+  other: { icon: Box, labelKey: 'catOther', color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-800' },
 };
 
 export const THEMES: Record<ThemeColor, { primary: string; secondary: string; surface: string; onSurface: string; container: string }> = {
-  blue: { primary: 'bg-blue-600', secondary: 'text-blue-600', surface: 'bg-blue-50', onSurface: 'text-blue-900', container: 'bg-blue-100' },
-  green: { primary: 'bg-emerald-600', secondary: 'text-emerald-600', surface: 'bg-emerald-50', onSurface: 'text-emerald-900', container: 'bg-emerald-100' },
-  violet: { primary: 'bg-violet-600', secondary: 'text-violet-600', surface: 'bg-violet-50', onSurface: 'text-violet-900', container: 'bg-violet-100' },
-  orange: { primary: 'bg-orange-600', secondary: 'text-orange-600', surface: 'bg-orange-50', onSurface: 'text-orange-900', container: 'bg-orange-100' },
-  rose: { primary: 'bg-rose-600', secondary: 'text-rose-600', surface: 'bg-rose-50', onSurface: 'text-rose-900', container: 'bg-rose-100' },
+  blue: { 
+    primary: 'bg-blue-600 dark:bg-blue-500', 
+    secondary: 'text-blue-600 dark:text-blue-400', 
+    surface: 'bg-blue-50 dark:bg-slate-950', 
+    onSurface: 'text-blue-900 dark:text-blue-100', 
+    container: 'bg-blue-100 dark:bg-blue-900/20' 
+  },
+  green: { 
+    primary: 'bg-emerald-600 dark:bg-emerald-500', 
+    secondary: 'text-emerald-600 dark:text-emerald-400', 
+    surface: 'bg-emerald-50 dark:bg-slate-950', 
+    onSurface: 'text-emerald-900 dark:text-emerald-100', 
+    container: 'bg-emerald-100 dark:bg-emerald-900/20' 
+  },
+  violet: { 
+    primary: 'bg-violet-600 dark:bg-violet-500', 
+    secondary: 'text-violet-600 dark:text-violet-400', 
+    surface: 'bg-violet-50 dark:bg-slate-950', 
+    onSurface: 'text-violet-900 dark:text-violet-100', 
+    container: 'bg-violet-100 dark:bg-violet-900/20' 
+  },
+  orange: { 
+    primary: 'bg-orange-600 dark:bg-orange-500', 
+    secondary: 'text-orange-600 dark:text-orange-400', 
+    surface: 'bg-orange-50 dark:bg-slate-950', 
+    onSurface: 'text-orange-900 dark:text-orange-100', 
+    container: 'bg-orange-100 dark:bg-orange-900/20' 
+  },
+  rose: { 
+    primary: 'bg-rose-600 dark:bg-rose-500', 
+    secondary: 'text-rose-600 dark:text-rose-400', 
+    surface: 'bg-rose-50 dark:bg-slate-950', 
+    onSurface: 'text-rose-900 dark:text-rose-100', 
+    container: 'bg-rose-100 dark:bg-rose-900/20' 
+  },
 };
 
 export const TEXTS: Translations = {
@@ -95,6 +128,10 @@ export const TEXTS: Translations = {
   catBooks: { 'zh-CN': '书籍', 'zh-TW': '書籍', 'en': 'Books', 'ja': '書籍' },
   catSports: { 'zh-CN': '运动', 'zh-TW': '運動', 'en': 'Sports', 'ja': 'スポーツ' },
   catOther: { 'zh-CN': '其他', 'zh-TW': '其他', 'en': 'Other', 'ja': 'その他' },
+  appearance: { 'zh-CN': '外观模式', 'zh-TW': '外觀模式', 'en': 'Appearance', 'ja': '外観モード' },
+  modeLight: { 'zh-CN': '浅色', 'zh-TW': '淺色', 'en': 'Light', 'ja': 'ライト' },
+  modeDark: { 'zh-CN': '深色', 'zh-TW': '深色', 'en': 'Dark', 'ja': 'ダーク' },
+  modeSystem: { 'zh-CN': '跟随系统', 'zh-TW': '跟隨系統', 'en': 'System', 'ja': 'システム' },
 };
 
 export const INITIAL_ITEMS = [];

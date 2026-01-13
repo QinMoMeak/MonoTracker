@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Item, Language, ThemeColor, Tab, CategoryType } from './types';
+import { Item, Language, ThemeColor, Tab, CategoryType, AppearanceMode } from './types';
 import { THEMES, TEXTS, ICONS, INITIAL_ITEMS, CATEGORY_CONFIG } from './constants';
 import { loadState, saveState, importCSV, exportCSV } from './services/storageService';
 import Timeline from './components/Timeline';
@@ -10,6 +10,7 @@ const App: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [language, setLanguage] = useState<Language>('zh-CN');
   const [theme, setTheme] = useState<ThemeColor>('blue');
+  const [appearance, setAppearance] = useState<AppearanceMode>('system');
   const [activeTab, setActiveTab] = useState<Tab>('owned');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
@@ -29,12 +30,39 @@ const App: React.FC = () => {
     }
     if (loaded.language) setLanguage(loaded.language);
     if (loaded.theme) setTheme(loaded.theme);
+    if (loaded.appearance) setAppearance(loaded.appearance);
   }, []);
 
   // --- Persistence ---
   useEffect(() => {
-    saveState({ items, language, theme });
-  }, [items, language, theme]);
+    saveState({ items, language, theme, appearance });
+  }, [items, language, theme, appearance]);
+
+  // --- Dark Mode Logic ---
+  useEffect(() => {
+    const root = window.document.documentElement;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const applyTheme = (isDark: boolean) => {
+        if (isDark) {
+            root.classList.add('dark');
+        } else {
+            root.classList.remove('dark');
+        }
+    };
+
+    if (appearance === 'dark') {
+        applyTheme(true);
+    } else if (appearance === 'light') {
+        applyTheme(false);
+    } else {
+        // System
+        applyTheme(mediaQuery.matches);
+        const handler = (e: MediaQueryListEvent) => applyTheme(e.matches);
+        mediaQuery.addEventListener('change', handler);
+        return () => mediaQuery.removeEventListener('change', handler);
+    }
+  }, [appearance]);
 
   // --- Handlers ---
   const handleSaveItem = (itemData: Partial<Item>) => {
@@ -164,18 +192,18 @@ const App: React.FC = () => {
               
               {/* Summary Cards */}
               <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white p-5 rounded-[2rem] shadow-sm">
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
                       <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.totalValue[language]}</p>
                       <p className={`text-2xl font-light ${themeColors.secondary}`}>¥{stats.totalVal.toLocaleString()}</p>
                   </div>
-                  <div className="bg-white p-5 rounded-[2rem] shadow-sm">
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
                       <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.itemCount[language]}</p>
-                      <p className="text-2xl font-light text-gray-800">{stats.totalCount}</p>
+                      <p className="text-2xl font-light text-gray-800 dark:text-gray-100">{stats.totalCount}</p>
                   </div>
               </div>
 
               {/* Category Chart */}
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm">
+              <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
                   <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
                       <ICONS.LayoutGrid size={16}/> {TEXTS.statsCategory[language]}
                   </h3>
@@ -199,9 +227,9 @@ const App: React.FC = () => {
                                           <span className="text-xs text-gray-400">({stat.count})</span>
                                       </div>
                                   </div>
-                                  <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                                  <div className="h-2 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                                       <div 
-                                        className={`h-full rounded-full ${conf.color.replace('text-', 'bg-')}`} 
+                                        className={`h-full rounded-full ${conf.color.replace(/text-(\w+)-(\d+)/, 'bg-$1-$2')}`} 
                                         style={{ width: `${stat.percent}%` }}
                                       />
                                   </div>
@@ -214,7 +242,8 @@ const App: React.FC = () => {
           </div>
 
           {/* Settings Cards */}
-          <div className="bg-white rounded-[2rem] p-6 shadow-sm space-y-6">
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm space-y-6 transition-colors">
+            {/* Theme Color */}
             <div>
               <h3 className="flex items-center gap-2 font-bold mb-4 opacity-70"><ICONS.Palette size={18}/> {TEXTS.theme[language]}</h3>
               <div className="flex gap-3 overflow-x-auto no-scrollbar py-1">
@@ -222,13 +251,39 @@ const App: React.FC = () => {
                   <button 
                     key={c} 
                     onClick={() => setTheme(c)}
-                    className={`w-12 h-12 rounded-full border-4 ${theme === c ? 'border-gray-300' : 'border-transparent'}`}
+                    className={`w-12 h-12 rounded-full border-4 ${theme === c ? 'border-gray-300 dark:border-gray-500' : 'border-transparent'}`}
                     style={{ backgroundColor: c === 'blue' ? '#2563eb' : c === 'green' ? '#059669' : c === 'violet' ? '#7c3aed' : c === 'orange' ? '#ea580c' : '#e11d48' }}
                   />
                 ))}
               </div>
             </div>
 
+            {/* Appearance Mode */}
+            <div>
+              <h3 className="flex items-center gap-2 font-bold mb-4 opacity-70"><ICONS.Moon size={18}/> {TEXTS.appearance[language]}</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                    { mode: 'light', label: TEXTS.modeLight, icon: ICONS.Sun },
+                    { mode: 'dark', label: TEXTS.modeDark, icon: ICONS.Moon },
+                    { mode: 'system', label: TEXTS.modeSystem, icon: ICONS.Monitor }
+                ].map((opt) => (
+                    <button
+                        key={opt.mode}
+                        onClick={() => setAppearance(opt.mode as AppearanceMode)}
+                        className={`flex flex-col items-center justify-center py-3 rounded-xl gap-1 text-xs font-medium transition-all ${
+                            appearance === opt.mode 
+                            ? `${themeColors.primary} text-white shadow-md` 
+                            : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'
+                        }`}
+                    >
+                        <opt.icon size={18} />
+                        {opt.label[language]}
+                    </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Language */}
             <div>
               <h3 className="flex items-center gap-2 font-bold mb-4 opacity-70"><ICONS.Globe size={18}/> {TEXTS.language[language]}</h3>
               <div className="grid grid-cols-2 gap-3">
@@ -236,7 +291,7 @@ const App: React.FC = () => {
                   <button 
                     key={l}
                     onClick={() => setLanguage(l)}
-                    className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${language === l ? `${themeColors.primary} text-white shadow-md` : 'bg-gray-100 text-gray-600'}`}
+                    className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${language === l ? `${themeColors.primary} text-white shadow-md` : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'}`}
                   >
                     {l === 'zh-CN' ? '简体中文' : l === 'zh-TW' ? '繁體中文' : l === 'en' ? 'English' : '日本語'}
                   </button>
@@ -245,11 +300,11 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-[2rem] p-6 shadow-sm space-y-4">
-             <button onClick={handleExport} className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-2xl hover:bg-gray-100">
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm space-y-4 transition-colors">
+             <button onClick={handleExport} className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800">
                 <span className="flex items-center gap-3 font-semibold"><ICONS.Download size={20}/> {TEXTS.export[language]}</span>
              </button>
-             <label className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-2xl hover:bg-gray-100 cursor-pointer">
+             <label className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer">
                 <span className="flex items-center gap-3 font-semibold"><ICONS.Upload size={20}/> {TEXTS.import[language]}</span>
                 <input type="file" accept=".csv" hidden onChange={handleImport} />
              </label>
@@ -278,10 +333,10 @@ const App: React.FC = () => {
       </button>
 
       {/* Floating Bottom Navigation */}
-      <div className="fixed bottom-6 left-6 right-6 h-20 bg-white/90 backdrop-blur-md shadow-2xl rounded-full z-30 flex items-center justify-around px-2 border border-white/50">
+      <div className="fixed bottom-6 left-6 right-6 h-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl rounded-full z-30 flex items-center justify-around px-2 border border-white/50 dark:border-slate-800/50 transition-colors">
         <button 
             onClick={() => setActiveTab('owned')}
-            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'owned' ? `${themeColors.secondary} bg-gray-50/50` : 'text-gray-400'}`}
+            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'owned' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'owned' ? themeColors.container : 'bg-transparent'}`}>
                 <ICONS.Home size={24} strokeWidth={activeTab === 'owned' ? 2.5 : 2} />
@@ -291,7 +346,7 @@ const App: React.FC = () => {
         
         <button 
             onClick={() => setActiveTab('wishlist')}
-            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'wishlist' ? `${themeColors.secondary} bg-gray-50/50` : 'text-gray-400'}`}
+            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'wishlist' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'wishlist' ? themeColors.container : 'bg-transparent'}`}>
                 <ICONS.Heart size={24} strokeWidth={activeTab === 'wishlist' ? 2.5 : 2} />
@@ -301,7 +356,7 @@ const App: React.FC = () => {
 
         <button 
             onClick={() => setActiveTab('profile')}
-            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'profile' ? `${themeColors.secondary} bg-gray-50/50` : 'text-gray-400'}`}
+            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'profile' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'profile' ? themeColors.container : 'bg-transparent'}`}>
                 <ICONS.User size={24} strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
