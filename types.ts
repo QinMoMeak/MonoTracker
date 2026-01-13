@@ -1,3 +1,4 @@
+
 export type Language = 'zh-CN' | 'zh-TW' | 'en' | 'ja';
 export type ThemeColor = 'blue' | 'green' | 'violet' | 'orange' | 'rose';
 export type AppearanceMode = 'light' | 'dark' | 'system';
@@ -32,4 +33,5 @@ export interface AppState {
   language: Language;
   theme: ThemeColor;
   appearance: AppearanceMode;
+  showAiFab: boolean;
 }

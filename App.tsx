@@ -14,6 +14,8 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('owned');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
+  const [initialAddMode, setInitialAddMode] = useState<'ai' | 'manual'>('ai');
+  const [showAiFab, setShowAiFab] = useState<boolean>(true);
 
   // --- Initialization ---
   useEffect(() => {
@@ -31,12 +33,13 @@ const App: React.FC = () => {
     if (loaded.language) setLanguage(loaded.language);
     if (loaded.theme) setTheme(loaded.theme);
     if (loaded.appearance) setAppearance(loaded.appearance);
+    if (loaded.showAiFab !== undefined) setShowAiFab(loaded.showAiFab);
   }, []);
 
   // --- Persistence ---
   useEffect(() => {
-    saveState({ items, language, theme, appearance });
-  }, [items, language, theme, appearance]);
+    saveState({ items, language, theme, appearance, showAiFab });
+  }, [items, language, theme, appearance, showAiFab]);
 
   // --- Dark Mode Logic ---
   useEffect(() => {
@@ -98,6 +101,13 @@ const App: React.FC = () => {
 
   const handleEditItem = (item: Item) => {
       setEditingItem(item);
+      setInitialAddMode('manual');
+      setIsAddModalOpen(true);
+  };
+
+  const handleOpenAdd = (mode: 'ai' | 'manual') => {
+      setEditingItem(null);
+      setInitialAddMode(mode);
       setIsAddModalOpen(true);
   };
 
@@ -286,6 +296,20 @@ const App: React.FC = () => {
               </div>
             </div>
 
+            {/* Toggle AI Button */}
+             <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 opacity-70">
+                    <ICONS.Sparkles size={18} />
+                    <span className="font-bold">{TEXTS.showAiButton[language]}</span>
+                </div>
+                <button 
+                    onClick={() => setShowAiFab(!showAiFab)}
+                    className={`w-12 h-7 rounded-full transition-colors duration-300 relative ${showAiFab ? themeColors.primary : 'bg-gray-200 dark:bg-slate-700'}`}
+                >
+                    <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-300 ${showAiFab ? 'left-6' : 'left-1'}`} />
+                </button>
+            </div>
+
             {/* Language */}
             <div>
               <h3 className="flex items-center gap-2 font-bold mb-4 opacity-70"><ICONS.Globe size={18}/> {TEXTS.language[language]}</h3>
@@ -324,16 +348,32 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Floating Action Button (FAB) for Add */}
-      <button 
-        onClick={() => setIsAddModalOpen(true)}
-        className={`
-            fixed right-6 bottom-28 z-40 p-5 rounded-[1.5rem] shadow-xl text-white transition-transform hover:scale-105 active:scale-95
-            ${themeColors.primary}
-        `}
-      >
-        <ICONS.Plus size={32} />
-      </button>
+      {/* Floating Action Buttons (Split) - Hide on Profile tab */}
+      {activeTab !== 'profile' && (
+        <div className="fixed right-6 bottom-28 z-40 flex flex-col items-end gap-4 pointer-events-none">
+            {/* Manual Add - Secondary (Only show if AI is enabled) */}
+            {showAiFab && (
+                <div className="flex items-center gap-2 pointer-events-auto">
+                <button
+                    onClick={() => handleOpenAdd('manual')}
+                    className="flex items-center justify-center w-14 h-14 rounded-[1.5rem] shadow-lg bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 transition-transform hover:scale-105 active:scale-95 border border-gray-100 dark:border-slate-700"
+                >
+                    <ICONS.Edit3 size={24} />
+                </button>
+                </div>
+            )}
+
+            {/* Primary Add Button (Acts as AI if enabled, or Manual if AI disabled) */}
+            <div className="flex items-center gap-2 pointer-events-auto">
+                <button
+                    onClick={() => handleOpenAdd(showAiFab ? 'ai' : 'manual')}
+                    className={`flex items-center justify-center w-14 h-14 rounded-[1.5rem] shadow-xl text-white transition-transform hover:scale-105 active:scale-95 ${themeColors.primary}`}
+                >
+                    {showAiFab ? <ICONS.Sparkles size={24} /> : <ICONS.Plus size={28} />}
+                </button>
+            </div>
+        </div>
+      )}
 
       {/* Floating Bottom Navigation */}
       <div className="fixed bottom-6 left-6 right-6 h-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl rounded-full z-30 flex items-center justify-around px-2 border border-white/50 dark:border-slate-800/50 transition-colors">
@@ -376,6 +416,7 @@ const App: React.FC = () => {
         theme={theme}
         activeTab={activeTab === 'wishlist' ? 'wishlist' : 'owned'}
         initialItem={editingItem}
+        initialMode={initialAddMode}
       />
     </div>
   );
