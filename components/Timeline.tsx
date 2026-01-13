@@ -67,7 +67,7 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
             {/* Timeline Header */}
             <div className="flex items-center gap-3 mb-3 ml-2">
                 <div className={`w-2 h-2 rounded-full ${themeColors.primary}`}></div>
-                <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">
+                <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     {getGroupTitle(`${key}-01`, language)}
                 </h2>
             </div>
@@ -81,45 +81,45 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
                     const CatIcon = catConfig.icon;
 
                     return (
-                        <div key={item.id} className="relative bg-white rounded-[1.5rem] p-4 shadow-sm border border-gray-100 overflow-hidden group">
+                        <div key={item.id} className="relative bg-white dark:bg-slate-900 rounded-[1.5rem] p-4 shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden group transition-colors">
                             <div className="flex gap-4 mb-3">
                                 {/* Image Section */}
-                                <div className="w-20 h-20 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden border border-gray-100 relative">
+                                <div className="w-20 h-20 flex-shrink-0 bg-gray-50 dark:bg-slate-800 rounded-xl overflow-hidden border border-gray-100 dark:border-slate-700 relative">
                                     {item.image ? (
                                         <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                        <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600">
                                             <ICONS.ImageIcon size={24} />
                                         </div>
                                     )}
                                     {/* Category Badge */}
-                                    <div className="absolute top-1 left-1 bg-white/90 backdrop-blur-sm p-1 rounded-full shadow-sm">
+                                    <div className="absolute top-1 left-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm p-1 rounded-full shadow-sm">
                                         <CatIcon size={12} className={catConfig.color} />
                                     </div>
                                 </div>
 
                                 {/* Content Section */}
                                 <div className="flex-1 min-w-0 pr-8">
-                                    <h3 className="font-bold text-gray-800 text-base truncate mb-1">{item.name}</h3>
+                                    <h3 className="font-bold text-gray-800 dark:text-gray-100 text-base truncate mb-1">{item.name}</h3>
                                     
                                     <div className="flex items-baseline gap-2">
                                         <span className={`font-mono font-bold text-lg ${themeColors.secondary}`}>
                                             ¥{item.price.toLocaleString()}
                                         </span>
                                         {item.msrp > item.price && (
-                                            <span className="text-xs text-gray-400 line-through decoration-gray-300">
+                                            <span className="text-xs text-gray-400 line-through decoration-gray-300 dark:decoration-gray-600">
                                                 ¥{item.msrp.toLocaleString()}
                                             </span>
                                         )}
                                     </div>
 
                                     <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                        <span className="text-xs text-gray-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1">
                                             <ICONS.Calendar size={10} />
                                             {item.purchaseDate}
                                         </span>
                                         {item.status !== 'new' && (
-                                            <span className="text-xs text-gray-500 border border-gray-200 px-2 py-0.5 rounded-md capitalize">
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-slate-700 px-2 py-0.5 rounded-md capitalize">
                                                 {item.status}
                                             </span>
                                         )}
@@ -132,7 +132,7 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
                                         e.stopPropagation();
                                         onEdit(item);
                                     }} 
-                                    className="absolute top-4 right-4 p-2 text-gray-300 hover:text-gray-600 transition-colors"
+                                    className="absolute top-4 right-4 p-2 text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
                                 >
                                     <ICONS.Edit3 size={18} />
                                 </button>
@@ -140,7 +140,7 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
 
                             {/* Stats Footer (Only for owned items) */}
                             {item.type === 'owned' && (
-                                <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+                                <div className="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                                     <div className="flex gap-4">
                                         <div className="flex flex-col">
                                             <span className="opacity-50 text-[10px] uppercase">{TEXTS.valPerDay[language]}</span>
@@ -152,10 +152,10 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
                                         </div>
                                     </div>
                                     
-                                    <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1 pl-3 pr-1">
+                                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-slate-800 rounded-lg p-1 pl-3 pr-1">
                                         <div className="flex items-center gap-1">
                                             <ICONS.Activity size={12} className="text-gray-400"/>
-                                            <span className="font-mono font-bold text-gray-700">{item.usageCount || 0}</span>
+                                            <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{item.usageCount || 0}</span>
                                         </div>
                                         <button 
                                             onClick={(e) => {
