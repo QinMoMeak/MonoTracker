@@ -42,12 +42,15 @@ const App: React.FC = () => {
   useEffect(() => {
     const root = window.document.documentElement;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
 
     const applyTheme = (isDark: boolean) => {
         if (isDark) {
             root.classList.add('dark');
+            metaThemeColor?.setAttribute('content', '#020617'); // slate-950
         } else {
             root.classList.remove('dark');
+            metaThemeColor?.setAttribute('content', '#f9fafb'); // gray-50
         }
     };
 
