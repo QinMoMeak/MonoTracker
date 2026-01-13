@@ -12,9 +12,10 @@ interface Props {
   theme: ThemeColor;
   activeTab: 'owned' | 'wishlist';
   initialItem?: Item | null;
+  initialMode: 'ai' | 'manual';
 }
 
-const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, theme, activeTab, initialItem }) => {
+const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, theme, activeTab, initialItem, initialMode }) => {
   const [mode, setMode] = useState<'ai' | 'manual'>('ai');
   const [loading, setLoading] = useState(false);
   const [desc, setDesc] = useState('');
@@ -35,7 +36,8 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
         setImage(initialItem.image);
         setDesc('');
       } else {
-        setMode('ai');
+        // Use the passed initialMode (ai or manual)
+        setMode(initialMode);
         setFormData({ 
           name: '', price: 0, msrp: 0, note: '', link: '', status: 'new', category: 'other', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0] 
         });
@@ -43,7 +45,7 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
         setDesc('');
       }
     }
-  }, [isOpen, initialItem, activeTab]);
+  }, [isOpen, initialItem, activeTab, initialMode]);
 
   if (!isOpen) return null;
 
@@ -98,7 +100,7 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
       
       <div className={`
         relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl 
-        transform transition-transform duration-300 max-h-[90vh] overflow-y-auto no-scrollbar pointer-events-auto
+        transform transition-transform duration-300 max-h-[90dvh] overflow-y-auto no-scrollbar pointer-events-auto
         ${themeColors.surface}
       `}>
         {/* Header */}
@@ -113,7 +115,7 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
 
         {/* AI Mode */}
         {mode === 'ai' && (
-          <div className="space-y-6">
+          <div className="space-y-6 pb-40">
             <div 
               className="border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-3xl p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors"
               onClick={() => fileInputRef.current?.click()}
@@ -158,7 +160,7 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
 
         {/* Manual Mode */}
         {mode === 'manual' && (
-          <div className="space-y-4">
+          <div className="space-y-4 pb-40">
             <div className="flex justify-center mb-4 cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                 {image ? (
                    <img src={image} className="h-32 rounded-xl object-cover shadow-sm" />

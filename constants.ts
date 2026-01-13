@@ -1,3 +1,4 @@
+
 import { Translations, ThemeColor, Language, CategoryType } from './types';
 import { 
   Home, 
@@ -91,6 +92,7 @@ export const TEXTS: Translations = {
   editItem: { 'zh-CN': '编辑物品', 'zh-TW': '編輯物品', 'en': 'Edit Item', 'ja': '編集' },
   quickAdd: { 'zh-CN': 'AI 快速添加', 'zh-TW': 'AI 快速添加', 'en': 'AI Quick Add', 'ja': 'AI追加' },
   manualAdd: { 'zh-CN': '手动添加', 'zh-TW': '手動添加', 'en': 'Manual Add', 'ja': '手動追加' },
+  showAiButton: { 'zh-CN': '显示 AI 按钮', 'zh-TW': '顯示 AI 按鈕', 'en': 'Show AI Button', 'ja': 'AIボタンを表示' },
   analyzeDesc: { 'zh-CN': '输入描述或上传图片，AI 将自动填写信息', 'zh-TW': '輸入描述或上傳圖片，AI 將自動填寫信息', 'en': 'Enter text or upload image, AI will fill details', 'ja': 'テキストや画像を解析して自動入力' },
   placeholderDesc: { 'zh-CN': '例如：昨天买了索尼耳机，花了1200元...', 'zh-TW': '例如：昨天買了索尼耳機，花了1200元...', 'en': 'E.g., Bought Sony headphones yesterday for $200...', 'ja': '例：昨日ソニーのヘッドホンを2万円で買った...' },
   analyzing: { 'zh-CN': '分析中...', 'zh-TW': '分析中...', 'en': 'Analyzing...', 'ja': '解析中...' },
