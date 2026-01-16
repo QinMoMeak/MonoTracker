@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Item, Language, ThemeColor } from '../types';
 import { THEMES, ICONS, TEXTS, CATEGORY_CONFIG } from '../constants';
@@ -60,6 +61,16 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
     );
   }
 
+  // Helper to get status label (localized or custom)
+  const getStatusLabel = (s: string) => {
+     if (s === 'new') return TEXTS.statusNew[language];
+     if (s === 'used') return TEXTS.statusUsed[language];
+     if (s === 'broken') return TEXTS.statusBroken[language];
+     if (s === 'sold') return TEXTS.statusSold[language];
+     if (s === 'emptied') return TEXTS.statusEmptied[language];
+     return s;
+  };
+
   return (
     <div className="w-full pb-32 px-4 space-y-6 pt-2">
       {groupKeys.map(key => (
@@ -77,8 +88,14 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
                     const days = getDaysOwned(item.purchaseDate);
                     const costPerDay = item.price / days;
                     const costPerUse = item.usageCount ? item.price / item.usageCount : item.price;
-                    const catConfig = CATEGORY_CONFIG[item.category || 'other'];
+                    
+                    // Handle custom categories: fallback to 'other' config if key not found
+                    const catConfig = CATEGORY_CONFIG[item.category] || CATEGORY_CONFIG['other'];
                     const CatIcon = catConfig.icon;
+                    // Display name: if it's a known key, use translation, else use raw string
+                    const catName = CATEGORY_CONFIG[item.category] 
+                        ? TEXTS[catConfig.labelKey][language] 
+                        : item.category;
 
                     return (
                         <div key={item.id} className="relative bg-white dark:bg-slate-900 rounded-[1.5rem] p-4 shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden group transition-colors">
@@ -111,16 +128,28 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
                                                 ¥{item.msrp.toLocaleString()}
                                             </span>
                                         )}
+                                        {/* Channel Badge */}
+                                        {item.channel && (
+                                            <span className="ml-2 text-[10px] text-gray-500 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-700">
+                                                {item.channel}
+                                            </span>
+                                        )}
                                     </div>
 
-                                    <div className="flex items-center gap-2 mt-1">
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
                                         <span className="text-xs text-gray-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1">
                                             <ICONS.Calendar size={10} />
                                             {item.purchaseDate}
                                         </span>
                                         {item.status !== 'new' && (
                                             <span className="text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-slate-700 px-2 py-0.5 rounded-md capitalize">
-                                                {item.status}
+                                                {getStatusLabel(item.status)}
+                                            </span>
+                                        )}
+                                        {/* Show Custom Category Name if not standard */}
+                                        {!CATEGORY_CONFIG[item.category] && (
+                                            <span className="text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-slate-700 px-2 py-0.5 rounded-md">
+                                                {catName}
                                             </span>
                                         )}
                                     </div>
