@@ -32,12 +32,17 @@ import {
   HeartPulse,
   ShoppingBag,
   Database,
-  X
+  X,
+  BarChart2,
+  Clock,
+  Layers,
+  TrendingUp
 } from 'lucide-react';
 
 export const ICONS = {
   Home, Heart, User, Plus, Calendar, DollarSign, Tag, LinkIcon, ImageIcon, Sparkles, Download, Upload, Globe, Palette, Trash2, Edit3, Activity,
-  Smartphone, Shirt, Armchair, BookOpen, Dumbbell, Box, PieChart, LayoutGrid, Moon, Sun, Monitor, HeartPulse, ShoppingBag, Database, X
+  Smartphone, Shirt, Armchair, BookOpen, Dumbbell, Box, PieChart, LayoutGrid, Moon, Sun, Monitor, HeartPulse, ShoppingBag, Database, X,
+  BarChart2, Clock, Layers, TrendingUp
 };
 
 // Config for known categories. Custom ones will fallback to 'other' visuals but keep their name.
@@ -95,6 +100,7 @@ export const THEMES: Record<ThemeColor, { primary: string; secondary: string; su
 export const TEXTS: Translations = {
   tabOwned: { 'zh-CN': '已购买', 'zh-TW': '已購買', 'en': 'Owned', 'ja': '購入済' },
   tabWishlist: { 'zh-CN': '心愿单', 'zh-TW': '心願單', 'en': 'Wishlist', 'ja': '欲しい物' },
+  tabStats: { 'zh-CN': '统计', 'zh-TW': '統計', 'en': 'Stats', 'ja': '統計' },
   tabMine: { 'zh-CN': '我的', 'zh-TW': '我的', 'en': 'Mine', 'ja': 'マイページ' },
   addItem: { 'zh-CN': '添加物品', 'zh-TW': '添加物品', 'en': 'Add Item', 'ja': '追加' },
   editItem: { 'zh-CN': '编辑物品', 'zh-TW': '編輯物品', 'en': 'Edit Item', 'ja': '編集' },
@@ -127,6 +133,13 @@ export const TEXTS: Translations = {
   addUsage: { 'zh-CN': '+1次', 'zh-TW': '+1次', 'en': '+1 Use', 'ja': '+1回' },
   deleteConfirm: { 'zh-CN': '确定删除吗？', 'zh-TW': '確定刪除嗎？', 'en': 'Delete item?', 'ja': '削除しますか？' },
   filterAll: { 'zh-CN': '全部', 'zh-TW': '全部', 'en': 'All', 'ja': '全て' },
+  
+  // Stats New
+  statsDuration: { 'zh-CN': '持有时长分布', 'zh-TW': '持有時長分佈', 'en': 'Duration Dist.', 'ja': '保有期間分布' },
+  statsStatusDist: { 'zh-CN': '资产状态分布', 'zh-TW': '資產狀態分佈', 'en': 'Status Dist.', 'ja': '状態分布' },
+  statsValDist: { 'zh-CN': '分类价值分布', 'zh-TW': '分類價值分佈', 'en': 'Value Dist.', 'ja': '価値分布' },
+  statsCountDist: { 'zh-CN': '分类数量分布', 'zh-TW': '分類數量分佈', 'en': 'Count Dist.', 'ja': '数量分布' },
+  statsTimeline: { 'zh-CN': '状态时间线', 'zh-TW': '狀態時間線', 'en': 'Status Timeline', 'ja': '状態タイムライン' },
   
   // Statuses
   statusNew: { 'zh-CN': '全新', 'zh-TW': '全新', 'en': 'New', 'ja': '新品' },
