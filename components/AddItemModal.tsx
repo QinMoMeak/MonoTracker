@@ -1,8 +1,9 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Item, Language, ThemeColor, CategoryType } from '../types';
-import { THEMES, TEXTS, ICONS, CATEGORY_CONFIG } from '../constants';
+import { THEMES, TEXTS, ICONS, CATEGORY_CONFIG, DEFAULT_CHANNELS } from '../constants';
 import { extractItemDetails } from '../services/geminiService';
-import { X, Loader2, Camera, Link as LinkIcon, Tag } from 'lucide-react';
+import { X, Loader2, Camera, Link as LinkIcon, Tag, ShoppingBag, Plus } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -13,9 +14,16 @@ interface Props {
   activeTab: 'owned' | 'wishlist';
   initialItem?: Item | null;
   initialMode: 'ai' | 'manual';
+  customCategories?: string[];
+  customChannels?: string[];
+  onAddCategory?: (cat: string) => void;
+  onAddChannel?: (chan: string) => void;
 }
 
-const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, theme, activeTab, initialItem, initialMode }) => {
+const AddItemModal: React.FC<Props> = ({ 
+  isOpen, onClose, onSave, language, theme, activeTab, initialItem, initialMode,
+  customCategories = [], customChannels = [], onAddCategory, onAddChannel
+}) => {
   const [mode, setMode] = useState<'ai' | 'manual'>('ai');
   const [loading, setLoading] = useState(false);
   const [desc, setDesc] = useState('');
@@ -24,7 +32,7 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
 
   // Manual Form State
   const [formData, setFormData] = useState<Partial<Item>>({
-    name: '', price: 0, msrp: 0, note: '', link: '', status: 'new', category: 'other', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0]
+    name: '', price: 0, msrp: 0, note: '', link: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0]
   });
 
   // Reset or Populate form when modal opens
@@ -39,7 +47,7 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
         // Use the passed initialMode (ai or manual)
         setMode(initialMode);
         setFormData({ 
-          name: '', price: 0, msrp: 0, note: '', link: '', status: 'new', category: 'other', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0] 
+          name: '', price: 0, msrp: 0, note: '', link: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0] 
         });
         setImage(undefined);
         setDesc('');
@@ -91,8 +99,50 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
     onClose();
   };
 
-  const statusOptions = ['new', 'used', 'broken', 'sold'] as const;
-  const categories = Object.keys(CATEGORY_CONFIG) as CategoryType[];
+  const handleAddNewCategory = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setTimeout(() => {
+        const newVal = window.prompt(TEXTS.newCategoryPrompt[language]);
+        if (newVal && newVal.trim() !== '') {
+            const trimmed = newVal.trim();
+            onAddCategory?.(trimmed);
+            setFormData(prev => ({ ...prev, category: trimmed }));
+        }
+      }, 50);
+  };
+
+  const handleAddNewChannel = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setTimeout(() => {
+        const newVal = window.prompt(TEXTS.newChannelPrompt[language]);
+        if (newVal && newVal.trim() !== '') {
+            const trimmed = newVal.trim();
+            onAddChannel?.(trimmed);
+            setFormData(prev => ({ ...prev, channel: trimmed }));
+        }
+      }, 50);
+  };
+
+  const handleAddNewStatus = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTimeout(() => {
+        const newVal = window.prompt(`${TEXTS.custom[language]} Status`);
+        if (newVal && newVal.trim() !== '') {
+            setFormData(prev => ({...prev, status: newVal.trim()}));
+        }
+    }, 50);
+  };
+
+  const statusOptions = ['new', 'used', 'broken', 'sold', 'emptied'] as const;
+  const standardCategories = Object.keys(CATEGORY_CONFIG) as CategoryType[];
+  // Combine standard + custom categories
+  const allCategories = [...standardCategories, ...customCategories];
+  
+  // Combine standard + custom channels
+  const allChannels = [...DEFAULT_CHANNELS, ...customChannels];
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pointer-events-none">
@@ -108,7 +158,7 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
           <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
             {initialItem ? TEXTS.editItem[language] : (mode === 'ai' ? TEXTS.quickAdd[language] : TEXTS.addItem[language])}
           </h2>
-          <button onClick={onClose} className="p-2 bg-gray-100 dark:bg-slate-800 rounded-full hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-800 dark:text-gray-200">
+          <button type="button" onClick={onClose} className="p-2 bg-gray-100 dark:bg-slate-800 rounded-full hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-800 dark:text-gray-200">
             <X size={20} />
           </button>
         </div>
@@ -141,12 +191,14 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
 
             <div className="flex gap-3">
               <button 
+                type="button"
                 onClick={() => setMode('manual')}
                 className="flex-1 py-4 rounded-full font-semibold bg-gray-200 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-slate-700 transition-colors"
               >
                 {TEXTS.manualAdd[language]}
               </button>
               <button 
+                type="button"
                 onClick={handleAiAnalyze}
                 disabled={loading || (!desc && !image)}
                 className={`flex-1 py-4 rounded-full font-semibold text-white flex items-center justify-center gap-2 ${themeColors.primary} ${(loading || (!desc && !image)) ? 'opacity-50' : ''}`}
@@ -228,14 +280,16 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
             {/* Category Selection */}
             <div>
                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.category[language]}</label>
-                <div className="grid grid-cols-4 gap-2">
-                    {categories.map(cat => {
-                        const config = CATEGORY_CONFIG[cat];
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                    {allCategories.map(cat => {
+                        const config = CATEGORY_CONFIG[cat] || CATEGORY_CONFIG['other'];
                         const Icon = config.icon;
                         const isSelected = formData.category === cat;
+                        const label = CATEGORY_CONFIG[cat] ? TEXTS[config.labelKey][language] : cat;
                         return (
                             <button
                                 key={cat}
+                                type="button"
                                 onClick={() => setFormData({...formData, category: cat})}
                                 className={`flex flex-col items-center justify-center p-3 rounded-xl transition-all border ${
                                     isSelected 
@@ -244,20 +298,30 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
                                 }`}
                             >
                                 <Icon size={20} className="mb-1" />
-                                <span className="text-[10px] font-medium">{TEXTS[config.labelKey][language]}</span>
+                                <span className="text-[10px] font-medium truncate w-full text-center">{label}</span>
                             </button>
                         );
                     })}
+                    {/* Add Custom Category Button */}
+                    <button
+                        type="button"
+                        onClick={handleAddNewCategory}
+                        className="flex flex-col items-center justify-center p-3 rounded-xl transition-all border bg-gray-50 dark:bg-slate-800/50 text-gray-400 dark:text-gray-500 border-dashed border-gray-300 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-800"
+                    >
+                        <Plus size={20} className="mb-1" />
+                        <span className="text-[10px] font-medium">{TEXTS.custom[language]}</span>
+                    </button>
                 </div>
             </div>
 
             {/* Status Selection */}
             <div>
                  <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.status[language]}</label>
-                 <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                 <div className="flex flex-wrap gap-2 mb-2">
                     {statusOptions.map(s => (
                         <button
                             key={s}
+                            type="button"
                             onClick={() => setFormData({...formData, status: s})}
                             className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap border ${
                                 formData.status === s 
@@ -265,13 +329,67 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
                                 : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
                             }`}
                         >
-                            {/* Map status to localized text */}
+                            {/* Map status to localized text, or show raw if custom */}
                             {s === 'new' ? TEXTS.statusNew[language] : 
                              s === 'used' ? TEXTS.statusUsed[language] : 
                              s === 'broken' ? TEXTS.statusBroken[language] : 
-                             TEXTS.statusSold[language]}
+                             s === 'sold' ? TEXTS.statusSold[language] :
+                             s === 'emptied' ? TEXTS.statusEmptied[language] :
+                             s}
                         </button>
                     ))}
+                    {/* Show selected custom status if not in options */}
+                    {formData.status && !statusOptions.includes(formData.status as any) && (
+                        <button
+                            type="button"
+                            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap border ${themeColors.primary} text-white border-transparent shadow-md`}
+                        >
+                            {formData.status}
+                        </button>
+                    )}
+
+                    {/* Add Custom Status Button */}
+                     <button
+                        type="button"
+                        onClick={handleAddNewStatus}
+                        className="w-8 h-9 flex items-center justify-center rounded-xl transition-all border bg-gray-50 dark:bg-slate-800/50 text-gray-400 dark:text-gray-500 border-dashed border-gray-300 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-800"
+                    >
+                        <Plus size={16} />
+                    </button>
+                 </div>
+            </div>
+
+            {/* Channel Selection */}
+            <div>
+                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.channel[language]}</label>
+                 <div className="flex flex-wrap gap-2 mb-2">
+                    {allChannels.map(c => {
+                        const labelKey = `chan${c}`;
+                        // Use translation if available, else raw string
+                        const label = TEXTS[labelKey] ? TEXTS[labelKey][language] : c;
+                        return (
+                            <button
+                                key={c}
+                                type="button"
+                                onClick={() => setFormData({...formData, channel: label})}
+                                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap border ${
+                                    formData.channel === label 
+                                    ? `${themeColors.primary} text-white border-transparent shadow-md` 
+                                    : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
+                                }`}
+                            >
+                                {label}
+                            </button>
+                        );
+                    })}
+                     {/* Add Custom Channel Button */}
+                     <button
+                        type="button"
+                        onClick={handleAddNewChannel}
+                        className="w-8 h-9 flex items-center justify-center rounded-xl transition-all border bg-gray-50 dark:bg-slate-800/50 text-gray-400 dark:text-gray-500 border-dashed border-gray-300 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-800"
+                    >
+                        <Plus size={16} />
+                    </button>
                  </div>
             </div>
 
@@ -300,6 +418,7 @@ const AddItemModal: React.FC<Props> = ({ isOpen, onClose, onSave, language, them
             </div>
 
             <button 
+              type="button"
               onClick={handleSubmit}
               className={`w-full py-4 mt-4 rounded-full font-bold text-white text-lg shadow-lg ${themeColors.primary}`}
             >

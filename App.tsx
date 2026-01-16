@@ -16,6 +16,14 @@ const App: React.FC = () => {
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [initialAddMode, setInitialAddMode] = useState<'ai' | 'manual'>('ai');
   const [showAiFab, setShowAiFab] = useState<boolean>(true);
+  const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  
+  // Generic filter state: 'all' or specific value (status for owned, category for wishlist)
+  const [activeFilter, setActiveFilter] = useState<string>('all');
+  
+  // Custom Data State
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [customChannels, setCustomChannels] = useState<string[]>([]);
 
   // --- Initialization ---
   useEffect(() => {
@@ -34,12 +42,44 @@ const App: React.FC = () => {
     if (loaded.theme) setTheme(loaded.theme);
     if (loaded.appearance) setAppearance(loaded.appearance);
     if (loaded.showAiFab !== undefined) setShowAiFab(loaded.showAiFab);
+    if (loaded.customCategories) setCustomCategories(loaded.customCategories);
+    if (loaded.customChannels) setCustomChannels(loaded.customChannels);
+    
+    // Mark as loaded to enable saving
+    setIsLoaded(true);
   }, []);
 
   // --- Persistence ---
   useEffect(() => {
-    saveState({ items, language, theme, appearance, showAiFab });
-  }, [items, language, theme, appearance, showAiFab]);
+    // Prevent saving if we haven't loaded yet to avoid overwriting with initial empty state
+    if (!isLoaded) return;
+
+    saveState({ items, language, theme, appearance, showAiFab, customCategories, customChannels });
+  }, [items, language, theme, appearance, showAiFab, customCategories, customChannels, isLoaded]);
+
+  // --- History Handling (Back Gesture) ---
+  useEffect(() => {
+    const handlePopState = () => {
+      // If modal is open and user presses back, close it
+      if (isAddModalOpen) {
+        setIsAddModalOpen(false);
+        setEditingItem(null);
+      }
+    };
+
+    if (isAddModalOpen) {
+      window.addEventListener('popstate', handlePopState);
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isAddModalOpen]);
+
+  // Reset filter on tab change
+  useEffect(() => {
+    setActiveFilter('all');
+  }, [activeTab]);
 
   // --- Dark Mode Logic ---
   useEffect(() => {
@@ -91,29 +131,35 @@ const App: React.FC = () => {
             link: itemData.link || '',
             image: itemData.image,
             usageCount: itemData.usageCount || 0,
-            discountRate: itemData.discountRate
+            discountRate: itemData.discountRate,
+            channel: itemData.channel
         };
         setItems(prev => [newItem, ...prev]);
     }
     setEditingItem(null);
-    setIsAddModalOpen(false);
+    // Go back in history to close modal (triggers popstate listener)
+    window.history.back();
   };
 
   const handleEditItem = (item: Item) => {
       setEditingItem(item);
       setInitialAddMode('manual');
       setIsAddModalOpen(true);
+      // Push state to allow back button to close modal
+      window.history.pushState(null, '', '');
   };
 
   const handleOpenAdd = (mode: 'ai' | 'manual') => {
       setEditingItem(null);
       setInitialAddMode(mode);
       setIsAddModalOpen(true);
+      // Push state to allow back button to close modal
+      window.history.pushState(null, '', '');
   };
 
   const handleCloseModal = () => {
-      setEditingItem(null);
-      setIsAddModalOpen(false);
+      // Go back in history (triggers popstate listener to close modal)
+      window.history.back();
   };
 
   const handleDeleteItem = (id: string) => {
@@ -126,14 +172,71 @@ const App: React.FC = () => {
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, usageCount: (i.usageCount || 0) + 1 } : i));
   };
 
-  const handleExport = () => {
-    const csv = exportCSV(items);
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `monotracker_backup_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+  // Custom Data Handlers
+  const handleAddCustomCategory = (cat: string) => {
+    if (cat && !customCategories.includes(cat)) {
+        setCustomCategories(prev => [...prev, cat]);
+    }
+  };
+
+  const handleAddCustomChannel = (chan: string) => {
+    if (chan && !customChannels.includes(chan)) {
+        setCustomChannels(prev => [...prev, chan]);
+    }
+  };
+
+  const handleDeleteCustomCategory = (cat: string) => {
+      if (window.confirm(TEXTS.confirmDeleteTag[language])) {
+          setCustomCategories(prev => prev.filter(c => c !== cat));
+      }
+  };
+
+  const handleDeleteCustomChannel = (chan: string) => {
+      if (window.confirm(TEXTS.confirmDeleteTag[language])) {
+          setCustomChannels(prev => prev.filter(c => c !== chan));
+      }
+  };
+
+
+  const handleExport = async () => {
+    try {
+        const csv = exportCSV(items);
+        const fileName = `monotracker_backup_${new Date().toISOString().split('T')[0]}.csv`;
+        // Add BOM for Excel compatibility
+        const csvContent = '\ufeff' + csv;
+        
+        // Mobile-first approach: Try Web Share API with File
+        const file = new File([csvContent], fileName, { type: 'text/csv' });
+        
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    files: [file],
+                    title: 'MonoTracker Backup',
+                    text: `Backup created on ${new Date().toLocaleDateString()}`
+                });
+                return; // Share successful
+            } catch (err) {
+                 // If user cancels (AbortError), stop. Otherwise fall back to download.
+                 if ((err as Error).name === 'AbortError') return;
+                 console.warn('Web Share API failed, falling back to download', err);
+            }
+        }
+
+        // Fallback: Direct Download for Desktop or incompatible browsers
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (e) {
+        console.error('Export failed', e);
+        alert('Export failed. Please try again.');
+    }
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,10 +253,47 @@ const App: React.FC = () => {
 
   // --- Computed ---
   const themeColors = THEMES[theme];
-  const filteredItems = useMemo(() => items.filter(i => {
+  
+  // 1. First filter by tab
+  const tabItems = useMemo(() => items.filter(i => {
       if (activeTab === 'profile') return true;
       return i.type === activeTab;
   }), [items, activeTab]);
+
+  // 2. Compute available filter options based on tab
+  const availableFilters = useMemo(() => {
+    if (activeTab === 'profile') return [];
+    
+    const options = new Set<string>();
+
+    if (activeTab === 'owned') {
+        // For Owned: Filter by Status
+        const standard = ['new', 'used', 'broken', 'sold', 'emptied'];
+        standard.forEach(s => options.add(s));
+        // Add custom statuses from items
+        tabItems.forEach(i => {
+            if (i.status) options.add(i.status);
+        });
+    } else if (activeTab === 'wishlist') {
+        // For Wishlist: Filter by Category
+        const standard = Object.keys(CATEGORY_CONFIG);
+        standard.forEach(c => options.add(c));
+        // Add custom categories from items
+        tabItems.forEach(i => {
+            if (i.category) options.add(i.category);
+        });
+    }
+    
+    return Array.from(options);
+  }, [tabItems, activeTab]);
+
+  // 3. Filter by selected option
+  const finalDisplayItems = useMemo(() => {
+      if (activeFilter === 'all') return tabItems;
+      if (activeTab === 'owned') return tabItems.filter(i => i.status === activeFilter);
+      if (activeTab === 'wishlist') return tabItems.filter(i => i.category === activeFilter);
+      return tabItems;
+  }, [tabItems, activeFilter, activeTab]);
   
   const totalValue = useMemo(() => items.filter(i => i.type === 'owned').reduce((acc, curr) => acc + curr.price, 0), [items]);
 
@@ -176,6 +316,38 @@ const App: React.FC = () => {
 
     return { totalCount, totalVal, catStats };
   }, [items]);
+
+  // Helper for localized status label
+  const getStatusLabel = (s: string) => {
+     if (s === 'new') return TEXTS.statusNew[language];
+     if (s === 'used') return TEXTS.statusUsed[language];
+     if (s === 'broken') return TEXTS.statusBroken[language];
+     if (s === 'sold') return TEXTS.statusSold[language];
+     if (s === 'emptied') return TEXTS.statusEmptied[language];
+     return s;
+  };
+
+  // Helper for localized category label
+  const getCategoryLabel = (c: string) => {
+      const config = CATEGORY_CONFIG[c];
+      return config ? TEXTS[config.labelKey][language] : c;
+  };
+
+  // Generic Label Getter
+  const getFilterLabel = (val: string) => {
+      if (activeTab === 'owned') return getStatusLabel(val);
+      if (activeTab === 'wishlist') return getCategoryLabel(val);
+      return val;
+  };
+
+  // Helper to get Icon for Category Filter
+  const getFilterIcon = (val: string) => {
+      if (activeTab === 'wishlist') {
+          const config = CATEGORY_CONFIG[val];
+          return config ? config.icon : null;
+      }
+      return null;
+  };
 
   // --- Render ---
   return (
@@ -252,6 +424,45 @@ const App: React.FC = () => {
                       {stats.totalCount === 0 && <p className="text-center text-gray-400 text-sm py-4">No data available</p>}
                   </div>
               </div>
+          </div>
+
+          {/* Data Management Section */}
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm space-y-6 transition-colors">
+            <h3 className="flex items-center gap-2 font-bold opacity-70 mb-2">
+                <ICONS.Database size={18}/> {TEXTS.manageData[language]}
+            </h3>
+            
+            {/* Custom Categories */}
+            <div>
+                 <h4 className="text-sm font-semibold mb-3 opacity-60">{TEXTS.manageCat[language]}</h4>
+                 <div className="flex flex-wrap gap-2">
+                     {customCategories.length === 0 && <p className="text-xs opacity-40">None</p>}
+                     {customCategories.map(cat => (
+                         <div key={cat} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 text-sm">
+                             <span>{cat}</span>
+                             <button onClick={() => handleDeleteCustomCategory(cat)} className="opacity-50 hover:opacity-100">
+                                 <ICONS.X size={14}/>
+                             </button>
+                         </div>
+                     ))}
+                 </div>
+            </div>
+
+            {/* Custom Channels */}
+            <div>
+                 <h4 className="text-sm font-semibold mb-3 opacity-60">{TEXTS.manageChan[language]}</h4>
+                 <div className="flex flex-wrap gap-2">
+                     {customChannels.length === 0 && <p className="text-xs opacity-40">None</p>}
+                     {customChannels.map(chan => (
+                         <div key={chan} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 text-sm">
+                             <span>{chan}</span>
+                             <button onClick={() => handleDeleteCustomChannel(chan)} className="opacity-50 hover:opacity-100">
+                                 <ICONS.X size={14}/>
+                             </button>
+                         </div>
+                     ))}
+                 </div>
+            </div>
           </div>
 
           {/* Settings Cards */}
@@ -338,14 +549,49 @@ const App: React.FC = () => {
           </div>
         </div>
       ) : (
-        <Timeline 
-          items={filteredItems} 
-          theme={theme} 
-          language={language}
-          onEdit={handleEditItem}
-          onDelete={handleDeleteItem}
-          onAddUsage={handleAddUsage}
-        />
+        <>
+            {/* Filter Chips (Dynamic: Status for Owned, Category for Wishlist) */}
+            <div className="px-6 mb-2">
+                <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
+                    <button
+                        onClick={() => setActiveFilter('all')}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
+                            activeFilter === 'all'
+                            ? `${themeColors.primary} text-white shadow-md`
+                            : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400'
+                        }`}
+                    >
+                        {TEXTS.filterAll[language]}
+                    </button>
+                    {availableFilters.map(filterVal => {
+                        const FilterIcon = getFilterIcon(filterVal);
+                        return (
+                            <button
+                                key={filterVal}
+                                onClick={() => setActiveFilter(filterVal)}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                                    activeFilter === filterVal
+                                    ? `${themeColors.primary} text-white shadow-md`
+                                    : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400'
+                                }`}
+                            >
+                                {FilterIcon && <FilterIcon size={12} />}
+                                {getFilterLabel(filterVal)}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+
+            <Timeline 
+              items={finalDisplayItems} 
+              theme={theme} 
+              language={language}
+              onEdit={handleEditItem}
+              onDelete={handleDeleteItem}
+              onAddUsage={handleAddUsage}
+            />
+        </>
       )}
 
       {/* Floating Action Buttons (Split) - Hide on Profile tab */}
@@ -417,6 +663,10 @@ const App: React.FC = () => {
         activeTab={activeTab === 'wishlist' ? 'wishlist' : 'owned'}
         initialItem={editingItem}
         initialMode={initialAddMode}
+        customCategories={customCategories}
+        customChannels={customChannels}
+        onAddCategory={handleAddCustomCategory}
+        onAddChannel={handleAddCustomChannel}
       />
     </div>
   );

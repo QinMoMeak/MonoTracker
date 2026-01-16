@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Item } from "../types";
 
@@ -23,11 +24,14 @@ const extractItemDetails = async (
       type: { type: Type.STRING, enum: ["owned", "wishlist"], description: "Whether the user already owns it or wants it" },
       category: { 
           type: Type.STRING, 
-          enum: ["digital", "fashion", "home", "beauty", "books", "sports", "other"], 
-          description: "Category of the item: digital (electronics), fashion (clothing), home (furniture/living), beauty, books, sports, or other" 
+          // Suggest standard categories but allow AI to infer if it fits strictly, 
+          // though our prompt will encourage standard keys. 
+          // We list "health" now.
+          description: "Category keys: digital, fashion, home, beauty, books, sports, health, other. Or a custom string if it doesn't fit." 
       },
+      channel: { type: Type.STRING, description: "Purchase channel/store (e.g. JD, Taobao, Pinduoduo, Xianyu, Douyin) or user specified" },
       note: { type: Type.STRING, description: "A short description or summary" },
-      status: { type: Type.STRING, enum: ["new", "used"], description: "Condition of the item" },
+      status: { type: Type.STRING, description: "Condition: new, used, broken, sold, emptied. Or custom." },
     },
     required: ["name", "type"],
   };
@@ -35,8 +39,9 @@ const extractItemDetails = async (
   const prompt = `
     Analyze the provided input (text and/or image) and extract product information.
     If the user mentions they bought it, set type to 'owned'. If they want it, set to 'wishlist'.
-    Classify the item into one of the following categories: digital, fashion, home, beauty, books, sports, other.
+    Classify the item into one of the following categories if possible: digital, fashion, home, beauty, books, sports, health, other.
     If no currency is specified, assume the local number.
+    Extract the purchase channel (e.g., JD, Taobao, etc.) if mentioned.
     If no date is specified, use today's date: ${new Date().toISOString().split('T')[0]}.
     Return JSON only.
   `;

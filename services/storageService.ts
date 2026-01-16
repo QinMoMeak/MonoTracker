@@ -1,3 +1,4 @@
+
 import { Item, AppState } from "../types";
 
 const STORAGE_KEY = "monotracker_data";
@@ -22,7 +23,7 @@ export const saveState = (state: AppState) => {
 };
 
 export const exportCSV = (items: Item[]): string => {
-  const headers = ["id", "type", "name", "price", "msrp", "purchaseDate", "status", "category", "note", "usageCount"];
+  const headers = ["id", "type", "name", "price", "msrp", "purchaseDate", "status", "category", "channel", "note", "usageCount"];
   const rows = items.map(item => 
     headers.map(key => {
       const val = (item as any)[key];
