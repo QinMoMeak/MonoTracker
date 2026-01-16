@@ -2,7 +2,7 @@
 export type Language = 'zh-CN' | 'zh-TW' | 'en' | 'ja';
 export type ThemeColor = 'blue' | 'green' | 'violet' | 'orange' | 'rose';
 export type AppearanceMode = 'light' | 'dark' | 'system';
-export type Tab = 'owned' | 'wishlist' | 'profile';
+export type Tab = 'owned' | 'wishlist' | 'stats' | 'profile';
 // CategoryType is now loosely typed to allow custom strings, but keeps specific keys for config lookup
 export type CategoryType = 'digital' | 'fashion' | 'home' | 'beauty' | 'books' | 'sports' | 'health' | 'other' | string;
 

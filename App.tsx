@@ -256,13 +256,13 @@ const App: React.FC = () => {
   
   // 1. First filter by tab
   const tabItems = useMemo(() => items.filter(i => {
-      if (activeTab === 'profile') return true;
+      if (activeTab === 'profile' || activeTab === 'stats') return true;
       return i.type === activeTab;
   }), [items, activeTab]);
 
   // 2. Compute available filter options based on tab
   const availableFilters = useMemo(() => {
-    if (activeTab === 'profile') return [];
+    if (activeTab === 'profile' || activeTab === 'stats') return [];
     
     const options = new Set<string>();
 
@@ -297,24 +297,69 @@ const App: React.FC = () => {
   
   const totalValue = useMemo(() => items.filter(i => i.type === 'owned').reduce((acc, curr) => acc + curr.price, 0), [items]);
 
-  // Statistics for Profile
+  // --- STATISTICS CALCULATIONS ---
   const stats = useMemo(() => {
     const ownedItems = items.filter(i => i.type === 'owned');
     const totalCount = ownedItems.length;
     const totalVal = ownedItems.reduce((acc, i) => acc + i.price, 0);
     
-    const catStats = (Object.keys(CATEGORY_CONFIG) as CategoryType[]).map(cat => {
+    // Category Stats (Value & Count)
+    // Gather all unique categories (both config and custom)
+    const allCats = new Set([...Object.keys(CATEGORY_CONFIG), ...ownedItems.map(i => i.category)]);
+    
+    const catStats = Array.from(allCats).map(cat => {
         const catItems = ownedItems.filter(i => (i.category || 'other') === cat);
         const val = catItems.reduce((acc, i) => acc + i.price, 0);
         return {
             cat,
             count: catItems.length,
             value: val,
-            percent: totalVal > 0 ? (val / totalVal) * 100 : 0
+            percentVal: totalVal > 0 ? (val / totalVal) * 100 : 0,
+            percentCount: totalCount > 0 ? (catItems.length / totalCount) * 100 : 0
         };
-    }).sort((a, b) => b.value - a.value);
+    }).filter(s => s.count > 0);
 
-    return { totalCount, totalVal, catStats };
+    const catStatsByValue = [...catStats].sort((a, b) => b.value - a.value);
+    const catStatsByCount = [...catStats].sort((a, b) => b.count - a.count);
+
+    // Status Stats
+    const statusMap = new Map<string, number>();
+    ownedItems.forEach(i => {
+        const s = i.status || 'unknown';
+        statusMap.set(s, (statusMap.get(s) || 0) + 1);
+    });
+    const statusStats = Array.from(statusMap.entries()).map(([status, count]) => ({
+        status,
+        count,
+        percent: totalCount > 0 ? (count / totalCount) * 100 : 0
+    })).sort((a, b) => b.count - a.count);
+
+    // Duration Stats
+    // Buckets: <1M, 1-6M, 6-12M, 1-3Y, >3Y
+    const now = new Date().getTime();
+    const dayMs = 1000 * 60 * 60 * 24;
+    const durationBuckets: Record<string, number> = {
+        '<1M': 0,
+        '1-6M': 0,
+        '6-12M': 0,
+        '1-3Y': 0,
+        '>3Y': 0
+    };
+    
+    ownedItems.forEach(i => {
+        const pDate = new Date(i.purchaseDate).getTime();
+        const days = (now - pDate) / dayMs;
+        if (days < 30) durationBuckets['<1M']++;
+        else if (days < 180) durationBuckets['1-6M']++;
+        else if (days < 365) durationBuckets['6-12M']++;
+        else if (days < 1095) durationBuckets['1-3Y']++;
+        else durationBuckets['>3Y']++;
+    });
+
+    // Timeline Data (sorted by date, highlighting status)
+    const timelineData = [...ownedItems].sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime());
+
+    return { totalCount, totalVal, catStatsByValue, catStatsByCount, statusStats, durationBuckets, timelineData };
   }, [items]);
 
   // Helper for localized status label
@@ -357,6 +402,8 @@ const App: React.FC = () => {
         <h1 className="text-3xl font-bold tracking-tight mb-1">MonoTracker</h1>
         {activeTab === 'profile' ? (
              <p className="opacity-60 text-sm">{TEXTS.tabMine[language]}</p>
+        ) : activeTab === 'stats' ? (
+             <p className="opacity-60 text-sm">{TEXTS.tabStats[language]}</p>
         ) : (
             <div className="flex items-baseline gap-2">
                 <span className="text-4xl font-light">¥{activeTab === 'owned' ? totalValue.toLocaleString() : '0'}</span>
@@ -365,67 +412,166 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Main Content Area */}
-      {activeTab === 'profile' ? (
+      {/* STATISTICS TAB */}
+      {activeTab === 'stats' && (
         <div className="p-6 space-y-6 pb-32">
-          
-          {/* Statistics Section */}
-          <div className="space-y-4">
-              <h2 className="text-lg font-bold opacity-80 flex items-center gap-2">
-                  <ICONS.PieChart size={20}/> {TEXTS.statsOverview[language]}
-              </h2>
-              
-              {/* Summary Cards */}
-              <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
-                      <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.totalValue[language]}</p>
-                      <p className={`text-2xl font-light ${themeColors.secondary}`}>¥{stats.totalVal.toLocaleString()}</p>
+             {/* 1. Overview */}
+             <div className="space-y-4">
+                  <h2 className="text-lg font-bold opacity-80 flex items-center gap-2">
+                      <ICONS.PieChart size={20}/> {TEXTS.statsOverview[language]}
+                  </h2>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
+                          <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.totalValue[language]}</p>
+                          <p className={`text-2xl font-light ${themeColors.secondary}`}>¥{stats.totalVal.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
+                          <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.itemCount[language]}</p>
+                          <p className="text-2xl font-light text-gray-800 dark:text-gray-100">{stats.totalCount}</p>
+                      </div>
                   </div>
-                  <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
-                      <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.itemCount[language]}</p>
-                      <p className="text-2xl font-light text-gray-800 dark:text-gray-100">{stats.totalCount}</p>
-                  </div>
-              </div>
+             </div>
 
-              {/* Category Chart */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
-                  <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
-                      <ICONS.LayoutGrid size={16}/> {TEXTS.statsCategory[language]}
-                  </h3>
-                  <div className="space-y-4">
-                      {stats.catStats.map((stat) => {
-                          const conf = CATEGORY_CONFIG[stat.cat];
-                          const Icon = conf.icon;
-                          if (stat.count === 0) return null;
+             {/* 2. Status Distribution */}
+             <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+                 <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
+                     <ICONS.Layers size={16}/> {TEXTS.statsStatusDist[language]}
+                 </h3>
+                 <div className="space-y-3">
+                     {stats.statusStats.map(stat => (
+                         <div key={stat.status}>
+                             <div className="flex justify-between text-sm mb-1">
+                                 <span className="capitalize font-medium">{getStatusLabel(stat.status)}</span>
+                                 <span className="opacity-60">{stat.count} ({stat.percent.toFixed(1)}%)</span>
+                             </div>
+                             <div className="h-2 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                 <div className={`h-full rounded-full ${themeColors.primary}`} style={{width: `${stat.percent}%`, opacity: 0.7}}></div>
+                             </div>
+                         </div>
+                     ))}
+                     {stats.statusStats.length === 0 && <p className="text-center text-xs opacity-40">No data</p>}
+                 </div>
+             </div>
 
-                          return (
-                              <div key={stat.cat}>
-                                  <div className="flex items-center justify-between mb-1">
-                                      <div className="flex items-center gap-2">
-                                          <div className={`p-1.5 rounded-lg ${conf.bg}`}>
-                                              <Icon size={14} className={conf.color} />
-                                          </div>
-                                          <span className="text-sm font-medium">{TEXTS[conf.labelKey][language]}</span>
-                                      </div>
-                                      <div className="text-right">
-                                          <span className="text-sm font-bold mr-2">¥{stat.value.toLocaleString()}</span>
-                                          <span className="text-xs text-gray-400">({stat.count})</span>
-                                      </div>
-                                  </div>
-                                  <div className="h-2 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                                      <div 
-                                        className={`h-full rounded-full ${conf.color.replace(/text-(\w+)-(\d+)/, 'bg-$1-$2')}`} 
-                                        style={{ width: `${stat.percent}%` }}
-                                      />
-                                  </div>
-                              </div>
-                          );
-                      })}
-                      {stats.totalCount === 0 && <p className="text-center text-gray-400 text-sm py-4">No data available</p>}
-                  </div>
-              </div>
-          </div>
+             {/* 3. Duration Distribution */}
+             <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+                 <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
+                     <ICONS.Clock size={16}/> {TEXTS.statsDuration[language]}
+                 </h3>
+                 <div className="flex items-end justify-between h-32 gap-2">
+                     {Object.entries(stats.durationBuckets).map(([label, count]) => {
+                         const numericCount = count as number;
+                         const max = Math.max(...(Object.values(stats.durationBuckets) as number[])) || 1;
+                         const height = (numericCount / max) * 100;
+                         return (
+                             <div key={label} className="flex flex-col items-center flex-1 group">
+                                 <div className="relative w-full bg-gray-100 dark:bg-slate-800 rounded-t-lg overflow-hidden flex items-end justify-center h-full">
+                                     <div 
+                                        className={`w-full transition-all duration-500 ${themeColors.primary}`} 
+                                        style={{ height: `${height}%`, opacity: numericCount > 0 ? 0.8 : 0.1 }} 
+                                     />
+                                     <span className="absolute bottom-1 text-[10px] font-bold text-gray-500 dark:text-gray-300">{numericCount}</span>
+                                 </div>
+                                 <span className="text-[10px] mt-2 text-gray-400 font-medium whitespace-nowrap">{label}</span>
+                             </div>
+                         );
+                     })}
+                 </div>
+             </div>
 
+             {/* 4. Category Value Distribution */}
+             <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+                 <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
+                     <ICONS.BarChart2 size={16}/> {TEXTS.statsValDist[language]}
+                 </h3>
+                 <div className="space-y-4">
+                     {stats.catStatsByValue.slice(0, 6).map((stat) => { // Top 6
+                         const conf = CATEGORY_CONFIG[stat.cat] || CATEGORY_CONFIG['other'];
+                         const Icon = conf.icon;
+                         return (
+                             <div key={stat.cat}>
+                                 <div className="flex items-center justify-between mb-1">
+                                     <div className="flex items-center gap-2">
+                                         <div className={`p-1 rounded-md ${conf.bg}`}>
+                                             <Icon size={12} className={conf.color} />
+                                         </div>
+                                         <span className="text-sm font-medium">{getCategoryLabel(stat.cat)}</span>
+                                     </div>
+                                     <span className="text-sm font-bold">¥{stat.value.toLocaleString()}</span>
+                                 </div>
+                                 <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                     <div 
+                                       className={`h-full rounded-full ${conf.color.replace(/text-(\w+)-(\d+)/, 'bg-$1-$2')}`} 
+                                       style={{ width: `${stat.percentVal}%` }}
+                                     />
+                                 </div>
+                             </div>
+                         );
+                     })}
+                 </div>
+             </div>
+
+             {/* 5. Category Count Distribution */}
+             <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+                 <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
+                     <ICONS.BarChart2 size={16}/> {TEXTS.statsCountDist[language]}
+                 </h3>
+                 <div className="space-y-4">
+                     {stats.catStatsByCount.slice(0, 6).map((stat) => { // Top 6
+                         const conf = CATEGORY_CONFIG[stat.cat] || CATEGORY_CONFIG['other'];
+                         const Icon = conf.icon;
+                         return (
+                             <div key={stat.cat}>
+                                 <div className="flex items-center justify-between mb-1">
+                                     <div className="flex items-center gap-2">
+                                         <div className={`p-1 rounded-md ${conf.bg}`}>
+                                             <Icon size={12} className={conf.color} />
+                                         </div>
+                                         <span className="text-sm font-medium">{getCategoryLabel(stat.cat)}</span>
+                                     </div>
+                                     <span className="text-sm font-bold">{stat.count}</span>
+                                 </div>
+                                 <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                     <div 
+                                       className={`h-full rounded-full ${conf.color.replace(/text-(\w+)-(\d+)/, 'bg-$1-$2')}`} 
+                                       style={{ width: `${stat.percentCount}%` }}
+                                     />
+                                 </div>
+                             </div>
+                         );
+                     })}
+                 </div>
+             </div>
+
+             {/* 6. Status Timeline */}
+             <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+                 <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
+                     <ICONS.TrendingUp size={16}/> {TEXTS.statsTimeline[language]}
+                 </h3>
+                 <div className="space-y-0 relative border-l-2 border-gray-100 dark:border-slate-800 ml-2">
+                     {stats.timelineData.slice(0, 10).map((item, idx) => ( // Show last 10 activities
+                         <div key={item.id} className="mb-6 ml-4 relative">
+                             <div className={`absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 ${themeColors.primary}`}></div>
+                             <div className="flex justify-between items-start">
+                                 <div>
+                                     <p className="text-xs text-gray-400 font-mono mb-0.5">{item.purchaseDate}</p>
+                                     <p className="text-sm font-bold">{item.name}</p>
+                                 </div>
+                                 <span className="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800 font-medium capitalize">
+                                     {getStatusLabel(item.status)}
+                                 </span>
+                             </div>
+                         </div>
+                     ))}
+                     {stats.timelineData.length === 0 && <p className="ml-4 text-xs opacity-40">No activity</p>}
+                 </div>
+             </div>
+        </div>
+      )}
+
+      {/* PROFILE TAB (Simplified) */}
+      {activeTab === 'profile' && (
+        <div className="p-6 space-y-6 pb-32">
           {/* Data Management Section */}
           <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm space-y-6 transition-colors">
             <h3 className="flex items-center gap-2 font-bold opacity-70 mb-2">
@@ -548,7 +694,10 @@ const App: React.FC = () => {
              </label>
           </div>
         </div>
-      ) : (
+      )}
+
+      {/* OWNED / WISHLIST VIEWS */}
+      {(activeTab === 'owned' || activeTab === 'wishlist') && (
         <>
             {/* Filter Chips (Dynamic: Status for Owned, Category for Wishlist) */}
             <div className="px-6 mb-2">
@@ -594,8 +743,8 @@ const App: React.FC = () => {
         </>
       )}
 
-      {/* Floating Action Buttons (Split) - Hide on Profile tab */}
-      {activeTab !== 'profile' && (
+      {/* Floating Action Buttons (Split) - Hide on Profile and Stats tab */}
+      {(activeTab === 'owned' || activeTab === 'wishlist') && (
         <div className="fixed right-6 bottom-28 z-40 flex flex-col items-end gap-4 pointer-events-none">
             {/* Manual Add - Secondary (Only show if AI is enabled) */}
             {showAiFab && (
@@ -628,9 +777,9 @@ const App: React.FC = () => {
             className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'owned' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'owned' ? themeColors.container : 'bg-transparent'}`}>
-                <ICONS.Home size={24} strokeWidth={activeTab === 'owned' ? 2.5 : 2} />
+                <ICONS.Home size={22} strokeWidth={activeTab === 'owned' ? 2.5 : 2} />
             </div>
-            <span className="text-[10px] font-bold">{TEXTS.tabOwned[language]}</span>
+            <span className="text-[9px] font-bold">{TEXTS.tabOwned[language]}</span>
         </button>
         
         <button 
@@ -638,9 +787,19 @@ const App: React.FC = () => {
             className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'wishlist' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'wishlist' ? themeColors.container : 'bg-transparent'}`}>
-                <ICONS.Heart size={24} strokeWidth={activeTab === 'wishlist' ? 2.5 : 2} />
+                <ICONS.Heart size={22} strokeWidth={activeTab === 'wishlist' ? 2.5 : 2} />
             </div>
-            <span className="text-[10px] font-bold">{TEXTS.tabWishlist[language]}</span>
+            <span className="text-[9px] font-bold">{TEXTS.tabWishlist[language]}</span>
+        </button>
+
+        <button 
+            onClick={() => setActiveTab('stats')}
+            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'stats' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
+        >
+            <div className={`p-1 rounded-full ${activeTab === 'stats' ? themeColors.container : 'bg-transparent'}`}>
+                <ICONS.PieChart size={22} strokeWidth={activeTab === 'stats' ? 2.5 : 2} />
+            </div>
+            <span className="text-[9px] font-bold">{TEXTS.tabStats[language]}</span>
         </button>
 
         <button 
@@ -648,9 +807,9 @@ const App: React.FC = () => {
             className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'profile' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'profile' ? themeColors.container : 'bg-transparent'}`}>
-                <ICONS.User size={24} strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
+                <ICONS.User size={22} strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
             </div>
-            <span className="text-[10px] font-bold">{TEXTS.tabMine[language]}</span>
+            <span className="text-[9px] font-bold">{TEXTS.tabMine[language]}</span>
         </button>
       </div>
 
