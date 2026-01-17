@@ -39,3 +39,38 @@ export interface AppState {
   customCategories: string[];
   customChannels: string[];
 }
+
+// File System Access API Types
+export interface FileSystemHandle {
+  kind: 'file' | 'directory';
+  name: string;
+}
+
+export interface FileSystemFileHandle extends FileSystemHandle {
+  kind: 'file';
+  createWritable(options?: any): Promise<FileSystemWritableFileStream>;
+}
+
+export interface FileSystemWritableFileStream extends WritableStream {
+  write(data: any): Promise<void>;
+  seek(position: number): Promise<void>;
+  truncate(size: number): Promise<void>;
+}
+
+// Android Native Bridge Interface
+interface AndroidInterface {
+  /**
+   * Saves CSV content to the device storage via native Android code.
+   * @param content The CSV string content
+   * @param filename The desired filename (e.g., backup.csv)
+   */
+  saveCSV: (content: string, filename: string) => void;
+}
+
+declare global {
+  interface Window {
+    showSaveFilePicker?: (options?: any) => Promise<FileSystemFileHandle>;
+    // Expose the Android interface on the window object
+    Android?: AndroidInterface;
+  }
+}

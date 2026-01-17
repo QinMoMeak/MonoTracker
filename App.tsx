@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { registerPlugin } from '@capacitor/core';
 import { Item, Language, ThemeColor, Tab, CategoryType, AppearanceMode } from './types';
 import { THEMES, TEXTS, ICONS, INITIAL_ITEMS, CATEGORY_CONFIG } from './constants';
 import { loadState, saveState, importCSV, exportCSV } from './services/storageService';
 import Timeline from './components/Timeline';
 import AddItemModal from './components/AddItemModal';
+
+// Define the custom Export Plugin interface
+interface ExportPluginInterface {
+  exportData(options: { content: string, fileName: string, mimeType: string }): Promise<{ uri: string }>;
+}
+
+// Register the plugin (assumes it is implemented on the native side)
+const ExportPlugin = registerPlugin<ExportPluginInterface>('ExportPlugin');
 
 const App: React.FC = () => {
   // --- State ---
@@ -17,6 +26,10 @@ const App: React.FC = () => {
   const [initialAddMode, setInitialAddMode] = useState<'ai' | 'manual'>('ai');
   const [showAiFab, setShowAiFab] = useState<boolean>(true);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  
+  // Export Modal State
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportData, setExportData] = useState('');
   
   // Generic filter state: 'all' or specific value (status for owned, category for wishlist)
   const [activeFilter, setActiveFilter] = useState<string>('all');
@@ -65,16 +78,19 @@ const App: React.FC = () => {
         setIsAddModalOpen(false);
         setEditingItem(null);
       }
+      if (showExportModal) {
+          setShowExportModal(false);
+      }
     };
 
-    if (isAddModalOpen) {
+    if (isAddModalOpen || showExportModal) {
       window.addEventListener('popstate', handlePopState);
     }
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [isAddModalOpen]);
+  }, [isAddModalOpen, showExportModal]);
 
   // Reset filter on tab change
   useEffect(() => {
@@ -198,45 +214,111 @@ const App: React.FC = () => {
   };
 
 
-  const handleExport = async () => {
-    try {
-        const csv = exportCSV(items);
-        const fileName = `monotracker_backup_${new Date().toISOString().split('T')[0]}.csv`;
-        // Add BOM for Excel compatibility
-        const csvContent = '\ufeff' + csv;
-        
-        // Mobile-first approach: Try Web Share API with File
-        const file = new File([csvContent], fileName, { type: 'text/csv' });
-        
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            try {
-                await navigator.share({
-                    files: [file],
-                    title: 'MonoTracker Backup',
-                    text: `Backup created on ${new Date().toLocaleDateString()}`
-                });
-                return; // Share successful
-            } catch (err) {
-                 // If user cancels (AbortError), stop. Otherwise fall back to download.
-                 if ((err as Error).name === 'AbortError') return;
-                 console.warn('Web Share API failed, falling back to download', err);
-            }
-        }
+  const handleOpenExportModal = () => {
+      const csv = exportCSV(items);
+      const csvContent = '\ufeff' + csv; // Add BOM
+      setExportData(csvContent);
+      setShowExportModal(true);
+      window.history.pushState(null, '', '');
+  };
 
-        // Fallback: Direct Download for Desktop or incompatible browsers
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', fileName);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 100);
-    } catch (e) {
-        console.error('Export failed', e);
-        alert('Export failed. Please try again.');
-    }
+  const handleCloseExportModal = () => {
+      window.history.back();
+  };
+
+  const executeFileSave = async () => {
+      const fileName = `monotracker_backup_${new Date().toISOString().split('T')[0]}.csv`;
+
+      // Strategy -1: Capacitor Native Plugin (Highest Priority)
+      try {
+          // Attempt to use the registered Capacitor plugin
+          const result = await ExportPlugin.exportData({
+              content: exportData,
+              fileName: fileName,
+              mimeType: 'text/csv'
+          });
+          console.log('Export success via Capacitor:', result.uri);
+          alert(TEXTS.exportSuccess[language]);
+          return; // Stop here if native export works
+      } catch (error: any) {
+          console.warn('Capacitor export failed or not available:', error);
+          // If error is "User cancelled", stop. Otherwise, fall through to other methods.
+          if (error.message === 'User cancelled export') return;
+      }
+      
+      // Strategy 0: Legacy Android Bridge (JSBridge - direct window injection)
+      if (window.Android && window.Android.saveCSV) {
+          try {
+              window.Android.saveCSV(exportData, fileName);
+              return; 
+          } catch (e) {
+              console.error("Native bridge failed, falling back to web methods", e);
+          }
+      }
+
+      // Strategy 1: File System Access API (Native "Save As" intent if supported by browser)
+      try {
+          if (window.showSaveFilePicker) {
+              const handle = await window.showSaveFilePicker({
+                  suggestedName: fileName,
+                  types: [{
+                      description: 'CSV File',
+                      accept: { 'text/csv': ['.csv'] },
+                  }],
+              });
+              const writable = await handle.createWritable();
+              await writable.write(exportData);
+              await writable.close();
+              return; // Success
+          }
+      } catch (err) {
+          console.warn('FileSystem API failed or cancelled:', err);
+          // Fall through to legacy method
+      }
+
+      // Strategy 2: Data URI Download (Bypasses Blob Registry restrictions in some WebViews)
+      try {
+          // Use Base64 to ensure encoding is preserved across strict boundaries
+          const base64Content = btoa(unescape(encodeURIComponent(exportData)));
+          const dataUri = `data:text/csv;base64,${base64Content}`;
+          
+          const link = document.createElement('a');
+          link.href = dataUri;
+          link.setAttribute('download', fileName);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+      } catch (e) {
+          console.error('Data URI download failed:', e);
+          alert('Save failed. Please copy the text below.');
+      }
+  };
+
+  const executeShare = async () => {
+      const fileName = `monotracker_backup_${new Date().toISOString().split('T')[0]}.csv`;
+      const file = new File([exportData], fileName, { type: 'text/csv' });
+      
+      try {
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                  files: [file],
+                  title: 'MonoTracker Backup'
+              });
+          } else {
+              alert('Sharing not supported on this device.');
+          }
+      } catch (e) {
+          console.warn('Share failed:', e);
+      }
+  };
+
+  const executeCopy = async () => {
+      try {
+          await navigator.clipboard.writeText(exportData);
+          alert(TEXTS.copySuccess[language]);
+      } catch (e) {
+          alert('Copy failed.');
+      }
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -685,7 +767,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm space-y-4 transition-colors">
-             <button onClick={handleExport} className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800">
+             <button onClick={handleOpenExportModal} className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800">
                 <span className="flex items-center gap-3 font-semibold"><ICONS.Download size={20}/> {TEXTS.export[language]}</span>
              </button>
              <label className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer">
@@ -694,6 +776,55 @@ const App: React.FC = () => {
              </label>
           </div>
         </div>
+      )}
+
+      {/* EXPORT MODAL */}
+      {showExportModal && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={handleCloseExportModal} style={{pointerEvents: 'auto'}} />
+            <div className={`relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl transform transition-transform duration-300 pointer-events-auto ${themeColors.surface}`}>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">{TEXTS.exportTitle[language]}</h2>
+                    <button onClick={handleCloseExportModal} className="p-2 bg-gray-100 dark:bg-slate-800 rounded-full">
+                        <ICONS.X size={20}/>
+                    </button>
+                </div>
+                
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{TEXTS.exportDesc[language]}</p>
+
+                <div className="space-y-3 mb-6">
+                    <button 
+                        onClick={executeFileSave}
+                        className={`w-full py-3 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 ${themeColors.primary}`}
+                    >
+                        <ICONS.Download size={20}/> {TEXTS.btnSaveFile[language]}
+                    </button>
+                    
+                    <button 
+                        onClick={executeShare}
+                        className="w-full py-3 rounded-xl font-bold bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 flex items-center justify-center gap-2"
+                    >
+                        <ICONS.Share2 size={20}/> {TEXTS.btnShareFile[language]}
+                    </button>
+
+                    <button 
+                        onClick={executeCopy}
+                        className="w-full py-3 rounded-xl font-bold bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 flex items-center justify-center gap-2"
+                    >
+                        <ICONS.Copy size={20}/> {TEXTS.btnCopy[language]}
+                    </button>
+                </div>
+
+                <div className="bg-gray-50 dark:bg-slate-950 p-4 rounded-xl border border-gray-100 dark:border-slate-800">
+                    <p className="text-xs font-semibold text-gray-400 mb-2 uppercase">{TEXTS.manualCopyTip[language]}</p>
+                    <textarea 
+                        readOnly 
+                        value={exportData} 
+                        className="w-full h-32 bg-transparent text-xs font-mono text-gray-500 dark:text-gray-400 focus:outline-none resize-none"
+                    />
+                </div>
+            </div>
+          </div>
       )}
 
       {/* OWNED / WISHLIST VIEWS */}

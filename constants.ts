@@ -36,13 +36,16 @@ import {
   BarChart2,
   Clock,
   Layers,
-  TrendingUp
+  TrendingUp,
+  Share2,
+  Copy,
+  FileText
 } from 'lucide-react';
 
 export const ICONS = {
   Home, Heart, User, Plus, Calendar, DollarSign, Tag, LinkIcon, ImageIcon, Sparkles, Download, Upload, Globe, Palette, Trash2, Edit3, Activity,
   Smartphone, Shirt, Armchair, BookOpen, Dumbbell, Box, PieChart, LayoutGrid, Moon, Sun, Monitor, HeartPulse, ShoppingBag, Database, X,
-  BarChart2, Clock, Layers, TrendingUp
+  BarChart2, Clock, Layers, TrendingUp, Share2, Copy, FileText
 };
 
 // Config for known categories. Custom ones will fallback to 'other' visuals but keep their name.
@@ -180,6 +183,26 @@ export const TEXTS: Translations = {
   confirmDeleteTag: { 'zh-CN': '删除此标签？', 'zh-TW': '刪除此標籤？', 'en': 'Delete this tag?', 'ja': 'このタグを削除しますか？' },
   newCategoryPrompt: { 'zh-CN': '输入新分类名称', 'zh-TW': '輸入新分類名稱', 'en': 'New Category Name', 'ja': '新しいカテゴリ名' },
   newChannelPrompt: { 'zh-CN': '输入新渠道名称', 'zh-TW': '輸入新渠道名稱', 'en': 'New Channel Name', 'ja': '新しい購入元名' },
+  
+  // Export Modal Translations
+  exportTitle: { 'zh-CN': '导出数据', 'zh-TW': '導出數據', 'en': 'Export Data', 'ja': 'データ出力' },
+  exportDesc: { 
+      'zh-CN': '请选择导出方式。如果直接保存无反应，请尝试复制内容。', 
+      'zh-TW': '請選擇導出方式。如果直接保存無反應，請嘗試複製內容。', 
+      'en': 'Select export method. If save fails, try copying.', 
+      'ja': '出力方法を選択。保存できない場合はコピーしてください。' 
+  },
+  btnSaveFile: { 'zh-CN': '保存为文件 (推荐)', 'zh-TW': '保存為文件 (推薦)', 'en': 'Save to File', 'ja': 'ファイルに保存' },
+  btnShareFile: { 'zh-CN': '分享文件', 'zh-TW': '分享文件', 'en': 'Share File', 'ja': 'ファイルを共有' },
+  btnCopy: { 'zh-CN': '复制 CSV 内容', 'zh-TW': '複製 CSV 內容', 'en': 'Copy Content', 'ja': '内容をコピー' },
+  copySuccess: { 'zh-CN': '已复制！', 'zh-TW': '已複製！', 'en': 'Copied!', 'ja': 'コピー完了' },
+  exportSuccess: { 'zh-CN': '文件已成功导出！', 'zh-TW': '文件已成功導出！', 'en': 'Export successful!', 'ja': 'エクスポート成功！' },
+  manualCopyTip: { 
+      'zh-CN': '如果上方按钮都无效，请手动全选复制下方文字：', 
+      'zh-TW': '如果上方按鈕都無效，請手動全選複製下方文字：', 
+      'en': 'If buttons fail, manually copy the text below:', 
+      'ja': 'ボタンが機能しない場合は、以下のテキストをコピーしてください：' 
+  },
 };
 
 export const INITIAL_ITEMS = [];
