@@ -23,10 +23,13 @@ export const saveState = (state: AppState) => {
 };
 
 export const exportCSV = (items: Item[]): string => {
-  const headers = ["id", "type", "name", "price", "msrp", "purchaseDate", "status", "category", "channel", "note", "usageCount"];
+  const headers = ["id", "type", "name", "price", "msrp", "purchaseDate", "status", "category", "channel", "note", "usageCount", "priceHistory"];
   const rows = items.map(item => 
     headers.map(key => {
-      const val = (item as any)[key];
+      let val = (item as any)[key];
+      if (key === 'priceHistory') {
+        val = Array.isArray(val) ? JSON.stringify(val) : '';
+      }
       // Escape quotes and wrap in quotes
       return `"${String(val || '').replace(/"/g, '""')}"`;
     }).join(",")
@@ -51,6 +54,13 @@ export const importCSV = (csv: string): Item[] => {
              const val = values[index] ? values[index].replace(/^"|"$/g, '').replace(/""/g, '"') : '';
              if (h === 'price' || h === 'msrp' || h === 'usageCount') {
                  item[h] = parseFloat(val) || 0;
+             } else if (h === 'priceHistory') {
+                 try {
+                     const parsed = JSON.parse(val);
+                     item[h] = Array.isArray(parsed) ? parsed : [];
+                 } catch {
+                     item[h] = [];
+                 }
              } else {
                  item[h] = val;
              }

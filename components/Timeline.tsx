@@ -32,6 +32,25 @@ const getGroupTitle = (dateStr: string, language: Language) => {
 
 const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onAddUsage }) => {
   const themeColors = THEMES[theme];
+  const currencySymbol = '\u00a5';
+
+  const getPriceHistoryStats = (history?: { date: string; price: number }[]) => {
+    if (!history || history.length === 0) return null;
+    let latest = history[0];
+    let min = history[0].price;
+    let max = history[0].price;
+    history.forEach(point => {
+      if (point.date > latest.date) latest = point;
+      if (point.price < min) min = point.price;
+      if (point.price > max) max = point.price;
+    });
+    return {
+      latest,
+      min,
+      max,
+      count: history.length
+    };
+  };
 
   // Sort items by date descending
   const sortedItems = React.useMemo(() => {
@@ -71,6 +90,11 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
      return s;
   };
 
+  const getChannelLabel = (channel: string) => {
+    const key = `chan${channel}`;
+    return TEXTS[key] ? TEXTS[key][language] : channel;
+  };
+
   return (
     <div className="w-full pb-32 px-4 space-y-6 pt-2">
       {groupKeys.map(key => (
@@ -96,6 +120,7 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
                     const catName = CATEGORY_CONFIG[item.category] 
                         ? TEXTS[catConfig.labelKey][language] 
                         : item.category;
+                    const priceHistoryStats = getPriceHistoryStats(item.priceHistory);
 
                     return (
                         <div key={item.id} className="relative bg-white dark:bg-slate-900 rounded-[1.5rem] p-4 shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden group transition-colors">
@@ -121,20 +146,29 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
                                     
                                     <div className="flex items-baseline gap-2">
                                         <span className={`font-mono font-bold text-lg ${themeColors.secondary}`}>
-                                            ¥{item.price.toLocaleString()}
+                                            {currencySymbol}{item.price.toLocaleString()}
                                         </span>
                                         {item.msrp > item.price && (
                                             <span className="text-xs text-gray-400 line-through decoration-gray-300 dark:decoration-gray-600">
-                                                ¥{item.msrp.toLocaleString()}
+                                                {currencySymbol}{item.msrp.toLocaleString()}
                                             </span>
                                         )}
                                         {/* Channel Badge */}
                                         {item.channel && (
                                             <span className="ml-2 text-[10px] text-gray-500 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-700">
-                                                {item.channel}
+                                                {getChannelLabel(item.channel)}
                                             </span>
                                         )}
                                     </div>
+
+                                    {item.type === 'wishlist' && priceHistoryStats && (
+                                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-2">
+                                            <span className="uppercase text-[10px] opacity-50">{TEXTS.priceHistoryShort[language]}</span>
+                                            <span>{TEXTS.priceHistoryLatest[language]} {currencySymbol}{priceHistoryStats.latest.price.toFixed(0)}</span>
+                                            <span>{TEXTS.priceHistoryMin[language]} {currencySymbol}{priceHistoryStats.min.toFixed(0)}</span>
+                                            <span>{TEXTS.priceHistoryMax[language]} {currencySymbol}{priceHistoryStats.max.toFixed(0)}</span>
+                                        </div>
+                                    )}
 
                                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                                         <span className="text-xs text-gray-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1">
@@ -173,11 +207,11 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
                                     <div className="flex gap-4">
                                         <div className="flex flex-col">
                                             <span className="opacity-50 text-[10px] uppercase">{TEXTS.valPerDay[language]}</span>
-                                            <span className="font-mono font-semibold">¥{costPerDay.toFixed(1)}</span>
+                                            <span className="font-mono font-semibold">{currencySymbol}{costPerDay.toFixed(1)}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="opacity-50 text-[10px] uppercase">{TEXTS.valPerUse[language]}</span>
-                                            <span className="font-mono font-semibold">¥{costPerUse.toFixed(1)}</span>
+                                            <span className="font-mono font-semibold">{currencySymbol}{costPerUse.toFixed(1)}</span>
                                         </div>
                                     </div>
                                     
@@ -208,4 +242,4 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
   );
 };
 
-export default Timeline;
+export default React.memo(Timeline);

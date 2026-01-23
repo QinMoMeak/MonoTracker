@@ -5,6 +5,31 @@ export type AppearanceMode = 'light' | 'dark' | 'system';
 export type Tab = 'owned' | 'wishlist' | 'stats' | 'profile';
 // CategoryType is now loosely typed to allow custom strings, but keeps specific keys for config lookup
 export type CategoryType = 'digital' | 'fashion' | 'home' | 'beauty' | 'books' | 'sports' | 'health' | 'other' | string;
+export type AiProvider = 'disabled' | 'openai' | 'gemini' | 'anthropic' | 'deepseek' | 'moonshot' | 'qwen' | 'zhipu';
+
+export interface AiCredentials {
+  apiKey: string;
+  baseUrl?: string;
+}
+
+export interface AiConfig {
+  provider: AiProvider;
+  model: string;
+  credentials: Record<string, Record<string, AiCredentials>>;
+  lastModelByProvider?: Record<string, string>;
+}
+
+export interface AiRuntimeConfig {
+  provider: AiProvider;
+  model: string;
+  apiKey: string;
+  baseUrl?: string;
+}
+
+export interface PricePoint {
+  date: string; // ISO 8601 YYYY-MM-DD
+  price: number;
+}
 
 export interface Item {
   id: string;
@@ -22,6 +47,7 @@ export interface Item {
   image?: string; // Base64
   usageCount: number; // For manual usage tracking
   discountRate?: number; // Calculated or manual
+  priceHistory?: PricePoint[]; // Wishlist price snapshots
 }
 
 export interface Translations {
@@ -35,9 +61,10 @@ export interface AppState {
   language: Language;
   theme: ThemeColor;
   appearance: AppearanceMode;
-  showAiFab: boolean;
-  customCategories: string[];
-  customChannels: string[];
+  aiConfig: AiConfig;
+  categories: string[];
+  statuses: string[];
+  channels: string[];
 }
 
 // File System Access API Types

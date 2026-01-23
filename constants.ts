@@ -6,9 +6,7 @@ import {
   User, 
   Plus, 
   Calendar, 
-  DollarSign, 
   Tag, 
-  Link as LinkIcon, 
   Image as ImageIcon,
   Sparkles,
   Download,
@@ -25,12 +23,10 @@ import {
   Dumbbell,
   Box,
   PieChart,
-  LayoutGrid,
   Moon,
   Sun,
   Monitor,
   HeartPulse,
-  ShoppingBag,
   Database,
   X,
   BarChart2,
@@ -39,13 +35,16 @@ import {
   TrendingUp,
   Share2,
   Copy,
-  FileText
+  ChevronRight,
+  ChevronDown,
+  Search,
+  SlidersHorizontal
 } from 'lucide-react';
 
 export const ICONS = {
-  Home, Heart, User, Plus, Calendar, DollarSign, Tag, LinkIcon, ImageIcon, Sparkles, Download, Upload, Globe, Palette, Trash2, Edit3, Activity,
-  Smartphone, Shirt, Armchair, BookOpen, Dumbbell, Box, PieChart, LayoutGrid, Moon, Sun, Monitor, HeartPulse, ShoppingBag, Database, X,
-  BarChart2, Clock, Layers, TrendingUp, Share2, Copy, FileText
+  Home, Heart, User, Plus, Calendar, Tag, ImageIcon, Sparkles, Download, Upload, Globe, Palette, Trash2, Edit3, Activity,
+  Smartphone, Shirt, Armchair, BookOpen, Dumbbell, Box, PieChart, Moon, Sun, Monitor, HeartPulse, Database, X,
+  BarChart2, Clock, Layers, TrendingUp, Share2, Copy, ChevronRight, ChevronDown, Search, SlidersHorizontal
 };
 
 // Config for known categories. Custom ones will fallback to 'other' visuals but keep their name.
@@ -61,6 +60,7 @@ export const CATEGORY_CONFIG: Record<string, { icon: any, labelKey: string, colo
 };
 
 export const DEFAULT_CHANNELS = ['JD', 'Taobao', 'PDD', 'Xianyu', 'Douyin'];
+export const DEFAULT_STATUSES = ['new', 'used', 'broken', 'sold', 'emptied'];
 
 export const THEMES: Record<ThemeColor, { primary: string; secondary: string; surface: string; onSurface: string; container: string }> = {
   blue: { 
@@ -114,6 +114,11 @@ export const TEXTS: Translations = {
   placeholderDesc: { 'zh-CN': '例如：昨天在京东买了索尼耳机，花了1200元...', 'zh-TW': '例如：昨天在京東買了索尼耳機，花了1200元...', 'en': 'E.g., Bought Sony headphones on Amazon yesterday for $200...', 'ja': '例：昨日Amazonでソニーのヘッドホンを2万円で買った...' },
   analyzing: { 'zh-CN': '分析中...', 'zh-TW': '分析中...', 'en': 'Analyzing...', 'ja': '解析中...' },
   save: { 'zh-CN': '保存', 'zh-TW': '保存', 'en': 'Save', 'ja': '保存' },
+  delete: { 'zh-CN': '删除', 'zh-TW': '刪除', 'en': 'Delete', 'ja': '削除' },
+  confirm: { 'zh-CN': '确认', 'zh-TW': '確認', 'en': 'Confirm', 'ja': '確認' },
+  ok: { 'zh-CN': '好的', 'zh-TW': '好的', 'en': 'OK', 'ja': 'OK' },
+  notice: { 'zh-CN': '提示', 'zh-TW': '提示', 'en': 'Notice', 'ja': 'お知らせ' },
+  none: { 'zh-CN': '暂无', 'zh-TW': '暫無', 'en': 'None', 'ja': 'なし' },
   cancel: { 'zh-CN': '取消', 'zh-TW': '取消', 'en': 'Cancel', 'ja': 'キャンセル' },
   name: { 'zh-CN': '名称', 'zh-TW': '名稱', 'en': 'Name', 'ja': '名前' },
   price: { 'zh-CN': '价格', 'zh-TW': '價格', 'en': 'Price', 'ja': '価格' },
@@ -135,6 +140,9 @@ export const TEXTS: Translations = {
   usage: { 'zh-CN': '使用次数', 'zh-TW': '使用次數', 'en': 'Usage', 'ja': '使用回数' },
   addUsage: { 'zh-CN': '+1次', 'zh-TW': '+1次', 'en': '+1 Use', 'ja': '+1回' },
   deleteConfirm: { 'zh-CN': '确定删除吗？', 'zh-TW': '確定刪除嗎？', 'en': 'Delete item?', 'ja': '削除しますか？' },
+  deleteCategoryConfirm: { 'zh-CN': '删除该分类会将相关物品归为“其他”，继续吗？', 'zh-TW': '刪除此分類會將相關物品歸為「其他」，繼續嗎？', 'en': 'Deleting this category will move related items to "other". Continue?', 'ja': 'このカテゴリを削除すると関連アイテムは「other」になります。続行しますか？' },
+  deleteStatusConfirm: { 'zh-CN': '删除该状态会将相关物品状态设为“全新”，继续吗？', 'zh-TW': '刪除此狀態會將相關物品狀態設為「全新」，繼續嗎？', 'en': 'Deleting this status will reset related items to "new". Continue?', 'ja': 'この状態を削除すると関連アイテムは「new」になります。続行しますか？' },
+  deleteChannelConfirm: { 'zh-CN': '删除该来源会清空相关物品的来源，继续吗？', 'zh-TW': '刪除此來源會清空相關物品的來源，繼續嗎？', 'en': 'Deleting this channel will clear related items. Continue?', 'ja': 'この購入元を削除すると関連アイテムの購入元が空になります。続行しますか？' },
   filterAll: { 'zh-CN': '全部', 'zh-TW': '全部', 'en': 'All', 'ja': '全て' },
   
   // Stats New
@@ -178,8 +186,31 @@ export const TEXTS: Translations = {
   
   // Data Management
   manageData: { 'zh-CN': '数据管理', 'zh-TW': '數據管理', 'en': 'Manage Data', 'ja': 'データ管理' },
-  manageCat: { 'zh-CN': '自定义分类', 'zh-TW': '自定義分類', 'en': 'Custom Categories', 'ja': 'カスタムカテゴリ' },
-  manageChan: { 'zh-CN': '自定义渠道', 'zh-TW': '自定義渠道', 'en': 'Custom Channels', 'ja': 'カスタム購入元' },
+  manageCat: { 'zh-CN': '分类管理', 'zh-TW': '分類管理', 'en': 'Manage Categories', 'ja': 'カテゴリ管理' },
+  manageStatus: { 'zh-CN': '状态管理', 'zh-TW': '狀態管理', 'en': 'Manage Statuses', 'ja': '状態管理' },
+  manageChan: { 'zh-CN': '来源管理', 'zh-TW': '來源管理', 'en': 'Manage Channels', 'ja': '購入元管理' },
+  addCategory: { 'zh-CN': '添加分类', 'zh-TW': '添加分類', 'en': 'Add Category', 'ja': 'カテゴリ追加' },
+  addStatus: { 'zh-CN': '添加状态', 'zh-TW': '添加狀態', 'en': 'Add Status', 'ja': '状態追加' },
+  addChannel: { 'zh-CN': '添加来源', 'zh-TW': '添加來源', 'en': 'Add Channel', 'ja': '購入元追加' },
+  editLabel: { 'zh-CN': '编辑', 'zh-TW': '編輯', 'en': 'Edit', 'ja': '編集' },
+  inputName: { 'zh-CN': '请输入名称', 'zh-TW': '請輸入名稱', 'en': 'Enter a name', 'ja': '名称を入力' },
+  aiSettings: { 'zh-CN': 'AI 设置', 'zh-TW': 'AI 設定', 'en': 'AI Settings', 'ja': 'AI設定' },
+  aiProvider: { 'zh-CN': '服务商', 'zh-TW': '服務商', 'en': 'Provider', 'ja': 'プロバイダー' },
+  aiApiKey: { 'zh-CN': 'API Key', 'zh-TW': 'API Key', 'en': 'API Key', 'ja': 'API Key' },
+  aiModel: { 'zh-CN': '模型', 'zh-TW': '模型', 'en': 'Model', 'ja': 'モデル' },
+  aiBaseUrl: { 'zh-CN': 'Base URL', 'zh-TW': 'Base URL', 'en': 'Base URL', 'ja': 'Base URL' },
+  aiDisabled: { 'zh-CN': '禁用 AI', 'zh-TW': '停用 AI', 'en': 'Disable AI', 'ja': 'AIを無効' },
+  aiOpenAI: { 'zh-CN': 'OpenAI', 'zh-TW': 'OpenAI', 'en': 'OpenAI', 'ja': 'OpenAI' },
+  aiGemini: { 'zh-CN': 'Google Gemini', 'zh-TW': 'Google Gemini', 'en': 'Google Gemini', 'ja': 'Google Gemini' },
+  aiAnthropic: { 'zh-CN': 'Anthropic', 'zh-TW': 'Anthropic', 'en': 'Anthropic', 'ja': 'Anthropic' },
+  aiDeepSeek: { 'zh-CN': 'DeepSeek', 'zh-TW': 'DeepSeek', 'en': 'DeepSeek', 'ja': 'DeepSeek' },
+  aiMoonshot: { 'zh-CN': 'Moonshot', 'zh-TW': 'Moonshot', 'en': 'Moonshot', 'ja': 'Moonshot' },
+  aiQwen: { 'zh-CN': 'Qwen', 'zh-TW': 'Qwen', 'en': 'Qwen', 'ja': 'Qwen' },
+  aiZhipu: { 'zh-CN': 'Z.ai', 'zh-TW': 'Z.ai', 'en': 'Z.ai', 'ja': 'Z.ai' },
+  aiMissingKey: { 'zh-CN': '请先在“我的 > AI 设置”中配置 API Key', 'zh-TW': '請先在「我的 > AI 設定」中配置 API Key', 'en': 'Please set your API Key in Profile > AI Settings first.', 'ja': '先に「マイ > AI設定」でAPI Keyを設定してください。' },
+  aiMissingProvider: { 'zh-CN': '请先选择 AI 服务商', 'zh-TW': '請先選擇 AI 服務商', 'en': 'Please choose an AI provider first.', 'ja': '先にAIプロバイダーを選択してください。' },
+  alreadyExists: { 'zh-CN': '名称已存在', 'zh-TW': '名稱已存在', 'en': 'Name already exists.', 'ja': '既に存在します。' },
+  requiredTag: { 'zh-CN': '该项为系统保留，无法删除', 'zh-TW': '此項為系統保留，無法刪除', 'en': 'This item is required and cannot be deleted.', 'ja': 'この項目は必須のため削除できません。' },
   confirmDeleteTag: { 'zh-CN': '删除此标签？', 'zh-TW': '刪除此標籤？', 'en': 'Delete this tag?', 'ja': 'このタグを削除しますか？' },
   newCategoryPrompt: { 'zh-CN': '输入新分类名称', 'zh-TW': '輸入新分類名稱', 'en': 'New Category Name', 'ja': '新しいカテゴリ名' },
   newChannelPrompt: { 'zh-CN': '输入新渠道名称', 'zh-TW': '輸入新渠道名稱', 'en': 'New Channel Name', 'ja': '新しい購入元名' },
@@ -203,6 +234,32 @@ export const TEXTS: Translations = {
       'en': 'If buttons fail, manually copy the text below:', 
       'ja': 'ボタンが機能しない場合は、以下のテキストをコピーしてください：' 
   },
+  saveFailed: { 'zh-CN': '保存失败，请使用下方复制功能。', 'zh-TW': '保存失敗，請使用下方複製功能。', 'en': 'Save failed. Please copy the text below.', 'ja': '保存に失敗しました。下のコピーを使用してください。' },
+  shareNotSupported: { 'zh-CN': '当前设备不支持分享。', 'zh-TW': '目前裝置不支援分享。', 'en': 'Sharing is not supported on this device.', 'ja': 'このデバイスは共有に対応していません。' },
+  copyFailed: { 'zh-CN': '复制失败。', 'zh-TW': '複製失敗。', 'en': 'Copy failed.', 'ja': 'コピーに失敗しました。' },
+  searchPlaceholder: { 'zh-CN': '\u641c\u7d22\u540d\u79f0/\u5907\u6ce8/\u6e20\u9053\u2026', 'zh-TW': '\u641c\u5c0b\u540d\u7a31/\u5099\u8a3b/\u901a\u8def\u2026', 'en': 'Search name/note/channel?', 'ja': '\u540d\u524d\u30fb\u30e1\u30e2\u30fb\u30c1\u30e3\u30f3\u30cd\u30eb\u691c\u7d22\u2026' },
+  advancedFilter: { 'zh-CN': '\u9ad8\u7ea7\u7b5b\u9009', 'zh-TW': '\u9032\u968e\u7be9\u9078', 'en': 'Advanced Filters', 'ja': '\u8a73\u7d30\u30d5\u30a3\u30eb\u30bf\u30fc' },
+  clearFilter: { 'zh-CN': '\u6e05\u7a7a\u7b5b\u9009', 'zh-TW': '\u6e05\u7a7a\u7be9\u9078', 'en': 'Clear Filters', 'ja': '\u30d5\u30a3\u30eb\u30bf\u30fc\u89e3\u9664' },
+  dateStart: { 'zh-CN': '\u5f00\u59cb\u65e5\u671f', 'zh-TW': '\u958b\u59cb\u65e5\u671f', 'en': 'Start Date', 'ja': '\u958b\u59cb\u65e5' },
+  dateEnd: { 'zh-CN': '\u7ed3\u675f\u65e5\u671f', 'zh-TW': '\u7d50\u675f\u65e5\u671f', 'en': 'End Date', 'ja': '\u7d42\u4e86\u65e5' },
+  priceMin: { 'zh-CN': '\u6700\u4f4e\u4ef7\u683c', 'zh-TW': '\u6700\u4f4e\u50f9\u683c', 'en': 'Min Price', 'ja': '\u6700\u4f4e\u4fa1\u683c' },
+  priceMax: { 'zh-CN': '\u6700\u9ad8\u4ef7\u683c', 'zh-TW': '\u6700\u9ad8\u50f9\u683c', 'en': 'Max Price', 'ja': '\u6700\u9ad8\u4fa1\u683c' },
+  statsMonthlyTrend: { 'zh-CN': '\u6309\u6708\u652f\u51fa\u8d8b\u52bf', 'zh-TW': '\u6309\u6708\u652f\u51fa\u8da8\u52e2', 'en': 'Monthly Spend Trend', 'ja': '\u6708\u5225\u652f\u51fa\u30c8\u30ec\u30f3\u30c9' },
+  statsCategoryTrend: { 'zh-CN': '\u5206\u7c7b\u652f\u51fa\u8d8b\u52bf', 'zh-TW': '\u5206\u985e\u652f\u51fa\u8da8\u52e2', 'en': 'Category Spend Trend', 'ja': '\u30ab\u30c6\u30b4\u30ea\u5225\u652f\u51fa' },
+  statsChannelTrend: { 'zh-CN': '\u6e20\u9053\u652f\u51fa\u8d8b\u52bf', 'zh-TW': '\u901a\u8def\u652f\u51fa\u8da8\u52e2', 'en': 'Channel Spend Trend', 'ja': '\u30c1\u30e3\u30f3\u30cd\u30eb\u5225\u652f\u51fa' },
+  channelUnknown: { 'zh-CN': '\u672a\u6807\u6ce8', 'zh-TW': '\u672a\u6a19\u8a3b', 'en': 'Unlabeled', 'ja': '\u672a\u8a2d\u5b9a' },
+  priceHistory: { 'zh-CN': '\u5386\u53f2\u4ef7\u683c\u8d70\u52bf', 'zh-TW': '\u6b77\u53f2\u50f9\u683c\u8da8\u52e2', 'en': 'Price History', 'ja': '\u4fa1\u683c\u5c65\u6b74' },
+  priceHistoryTip: { 'zh-CN': '\u53ef\u6309\u65f6\u95f4\u8bb0\u5f55', 'zh-TW': '\u53ef\u6309\u6642\u9593\u8a18\u9304', 'en': 'Record snapshots over time', 'ja': '\u6642\u70b9\u4fa1\u683c\u3092\u8a18\u9332' },
+  priceHistoryDate: { 'zh-CN': '\u8bb0\u5f55\u65e5\u671f', 'zh-TW': '\u8a18\u9304\u65e5\u671f', 'en': 'Date', 'ja': '\u65e5\u4ed8' },
+  priceHistoryPrice: { 'zh-CN': '\u8bb0\u5f55\u4ef7\u683c', 'zh-TW': '\u8a18\u9304\u50f9\u683c', 'en': 'Price', 'ja': '\u4fa1\u683c' },
+  priceHistoryAdd: { 'zh-CN': '\u6dfb\u52a0\u4ef7\u683c\u8bb0\u5f55', 'zh-TW': '\u65b0\u589e\u50f9\u683c\u8a18\u9304', 'en': 'Add Price Point', 'ja': '\u4fa1\u683c\u3092\u8ffd\u52a0' },
+  priceHistoryEmpty: { 'zh-CN': '\u6682\u65e0\u5386\u53f2\u4ef7\u683c', 'zh-TW': '\u66ab\u7121\u6b77\u53f2\u50f9\u683c', 'en': 'No price history', 'ja': '\u5c65\u6b74\u306a\u3057' },
+  priceHistoryInvalid: { 'zh-CN': '\u8bf7\u8f93\u5165\u6709\u6548\u65e5\u671f\u4e0e\u4ef7\u683c', 'zh-TW': '\u8acb\u8f38\u5165\u6709\u6548\u65e5\u671f\u8207\u50f9\u683c', 'en': 'Enter a valid date and price', 'ja': '\u6709\u52b9\u306a\u65e5\u4ed8\u3068\u4fa1\u683c\u3092\u5165\u529b' },
+  priceHistoryShort: { 'zh-CN': '\u5386\u53f2\u4ef7', 'zh-TW': '\u6b77\u53f2\u50f9', 'en': 'History', 'ja': '\u5c65\u6b74' },
+  priceHistoryLatest: { 'zh-CN': '\u6700\u65b0', 'zh-TW': '\u6700\u65b0', 'en': 'Latest', 'ja': '\u6700\u65b0' },
+  priceHistoryMin: { 'zh-CN': '\u6700\u4f4e', 'zh-TW': '\u6700\u4f4e', 'en': 'Min', 'ja': '\u6700\u5b89' },
+  priceHistoryMax: { 'zh-CN': '\u6700\u9ad8', 'zh-TW': '\u6700\u9ad8', 'en': 'Max', 'ja': '\u6700\u9ad8' },
+  aiAnalyzeFailed: { 'zh-CN': 'AI 分析失败，请尝试手动添加。', 'zh-TW': 'AI 解析失敗，請改用手動添加。', 'en': 'AI analysis failed. Please try manual entry.', 'ja': 'AI解析に失敗しました。手動で追加してください。' },
 };
 
 export const INITIAL_ITEMS = [];

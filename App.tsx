@@ -1,10 +1,16 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { registerPlugin } from '@capacitor/core';
-import { Item, Language, ThemeColor, Tab, CategoryType, AppearanceMode } from './types';
-import { THEMES, TEXTS, ICONS, INITIAL_ITEMS, CATEGORY_CONFIG } from './constants';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { AiConfig, AiCredentials, AiProvider, AiRuntimeConfig, Item, Language, ThemeColor, Tab, AppearanceMode } from './types';
+import { THEMES, TEXTS, ICONS, INITIAL_ITEMS, CATEGORY_CONFIG, DEFAULT_CHANNELS, DEFAULT_STATUSES } from './constants';
 import { loadState, saveState, importCSV, exportCSV } from './services/storageService';
+import { AI_PROVIDERS, getModelMeta, getProviderMeta, getProviderModels } from './services/aiProviders';
 import Timeline from './components/Timeline';
 import AddItemModal from './components/AddItemModal';
+import Dialog from './components/Dialog';
+import SheetModal from './components/SheetModal';
 
 // Define the custom Export Plugin interface
 interface ExportPluginInterface {
@@ -24,8 +30,10 @@ const App: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [initialAddMode, setInitialAddMode] = useState<'ai' | 'manual'>('ai');
-  const [showAiFab, setShowAiFab] = useState<boolean>(true);
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
+  const [aiConfig, setAiConfig] = useState<AiConfig>({ provider: 'disabled', model: '', credentials: {} });
+  const [showAiSettingsModal, setShowAiSettingsModal] = useState(false);
+  const [showDataManageModal, setShowDataManageModal] = useState(false);
   
   // Export Modal State
   const [showExportModal, setShowExportModal] = useState(false);
@@ -33,10 +41,108 @@ const App: React.FC = () => {
   
   // Generic filter state: 'all' or specific value (status for owned, category for wishlist)
   const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [filterDateStart, setFilterDateStart] = useState('');
+  const [filterDateEnd, setFilterDateEnd] = useState('');
+  const [filterPriceMin, setFilterPriceMin] = useState('');
+  const [filterPriceMax, setFilterPriceMax] = useState('');
+  const [topN, setTopN] = useState(5);
   
-  // Custom Data State
-  const [customCategories, setCustomCategories] = useState<string[]>([]);
-  const [customChannels, setCustomChannels] = useState<string[]>([]);
+  // Managed Data State
+  const [categories, setCategories] = useState<string[]>(Object.keys(CATEGORY_CONFIG));
+  const [statuses, setStatuses] = useState<string[]>(DEFAULT_STATUSES);
+  const [channels, setChannels] = useState<string[]>(DEFAULT_CHANNELS);
+
+  type DialogState = {
+    type: 'alert' | 'confirm' | 'prompt';
+    title: string;
+    message?: string;
+    confirmText: string;
+    cancelText?: string;
+    defaultValue?: string;
+    placeholder?: string;
+    onConfirm: (value?: string) => void;
+    onCancel?: () => void;
+  };
+
+  const [dialog, setDialog] = useState<DialogState | null>(null);
+
+  const mergeUnique = (values: string[]) =>
+    Array.from(new Set(values.map(v => v.trim()).filter(Boolean)));
+
+  const currencySymbol = '\u00a5';
+
+  const channelLabelMap = useMemo(() => {
+    const map = new Map<string, string>();
+    channels.forEach(c => {
+      const key = `chan${c}`;
+      map.set(c, TEXTS[key] ? TEXTS[key][language] : c);
+    });
+    return map;
+  }, [channels, language]);
+
+  const channelLabelToKeyMap = useMemo(() => {
+    const map = new Map<string, string>();
+    channelLabelMap.forEach((label, key) => {
+      map.set(label, key);
+    });
+    return map;
+  }, [channelLabelMap]);
+
+  const getChannelLabel = useCallback(
+    (channel: string) => channelLabelMap.get(channel) || channel,
+    [channelLabelMap]
+  );
+
+  const normalizeChannelValue = useCallback(
+    (value?: string) => {
+      if (!value) return value;
+      return channelLabelToKeyMap.get(value) || value;
+    },
+    [channelLabelToKeyMap]
+  );
+
+  const getDefaultModel = (provider: AiProvider) => {
+    const meta = getProviderMeta(provider);
+    return meta?.defaultModel || meta?.models?.[0]?.id || '';
+  };
+
+  const getDefaultBaseUrl = (provider: AiProvider, model: string) => {
+    const modelMeta = getModelMeta(provider, model);
+    return modelMeta?.defaultBaseUrl || getProviderMeta(provider)?.defaultBaseUrl || '';
+  };
+
+  const getCredential = (config: AiConfig, provider: AiProvider, model: string): AiCredentials => {
+    return config.credentials?.[provider]?.[model] || { apiKey: '', baseUrl: '' };
+  };
+
+  const buildAiConfig = (raw: any, fallbackProvider: AiProvider): AiConfig => {
+    const provider: AiProvider = raw?.provider || fallbackProvider;
+    const model = raw?.model || getDefaultModel(provider);
+    const credentials = raw?.credentials ? { ...raw.credentials } : {};
+    const lastModelByProvider = raw?.lastModelByProvider ? { ...raw.lastModelByProvider } : {};
+
+    if (raw?.apiKey || raw?.baseUrl) {
+      const legacyModel = model || getDefaultModel(provider);
+      if (!credentials[provider]) credentials[provider] = {};
+      credentials[provider][legacyModel] = {
+        apiKey: raw.apiKey || '',
+        baseUrl: raw.baseUrl || ''
+      };
+    }
+
+    if (provider && model) {
+      lastModelByProvider[provider] = lastModelByProvider[provider] || model;
+    }
+
+    return {
+      provider,
+      model,
+      credentials,
+      lastModelByProvider
+    };
+  };
 
   // --- Initialization ---
   useEffect(() => {
@@ -54,9 +160,27 @@ const App: React.FC = () => {
     if (loaded.language) setLanguage(loaded.language);
     if (loaded.theme) setTheme(loaded.theme);
     if (loaded.appearance) setAppearance(loaded.appearance);
-    if (loaded.showAiFab !== undefined) setShowAiFab(loaded.showAiFab);
-    if (loaded.customCategories) setCustomCategories(loaded.customCategories);
-    if (loaded.customChannels) setCustomChannels(loaded.customChannels);
+
+    const legacyCategories = (loaded as any).customCategories || [];
+    const legacyChannels = (loaded as any).customChannels || [];
+    const legacyStatuses = (loaded as any).customStatuses || [];
+
+    const initialCategories = loaded.categories?.length
+      ? mergeUnique([...loaded.categories, 'other'])
+      : mergeUnique([...Object.keys(CATEGORY_CONFIG), ...legacyCategories]);
+    const initialStatuses = loaded.statuses?.length
+      ? mergeUnique([...loaded.statuses, 'new'])
+      : mergeUnique([...DEFAULT_STATUSES, ...legacyStatuses]);
+    const initialChannels = loaded.channels?.length
+      ? loaded.channels
+      : mergeUnique([...DEFAULT_CHANNELS, ...legacyChannels]);
+
+    setCategories(initialCategories);
+    setStatuses(initialStatuses);
+    setChannels(initialChannels);
+
+    const fallbackProvider: AiProvider = (loaded as any).showAiFab === false ? 'disabled' : 'gemini';
+    setAiConfig(buildAiConfig(loaded.aiConfig || {}, fallbackProvider));
     
     // Mark as loaded to enable saving
     setIsLoaded(true);
@@ -67,35 +191,131 @@ const App: React.FC = () => {
     // Prevent saving if we haven't loaded yet to avoid overwriting with initial empty state
     if (!isLoaded) return;
 
-    saveState({ items, language, theme, appearance, showAiFab, customCategories, customChannels });
-  }, [items, language, theme, appearance, showAiFab, customCategories, customChannels, isLoaded]);
+    saveState({ items, language, theme, appearance, aiConfig, categories, statuses, channels });
+  }, [items, language, theme, appearance, aiConfig, categories, statuses, channels, isLoaded]);
+
+  const closeAddModal = () => {
+    setIsAddModalOpen(false);
+    setEditingItem(null);
+  };
+
+  const closeExportModal = () => {
+    setShowExportModal(false);
+  };
+
+  const closeAiSettingsModal = () => {
+    setShowAiSettingsModal(false);
+  };
+
+  const closeDataManageModal = () => {
+    setShowDataManageModal(false);
+  };
 
   // --- History Handling (Back Gesture) ---
   useEffect(() => {
     const handlePopState = () => {
       // If modal is open and user presses back, close it
       if (isAddModalOpen) {
-        setIsAddModalOpen(false);
-        setEditingItem(null);
+        closeAddModal();
       }
       if (showExportModal) {
-          setShowExportModal(false);
+          closeExportModal();
+      }
+      if (showAiSettingsModal) {
+          closeAiSettingsModal();
+      }
+      if (showDataManageModal) {
+          closeDataManageModal();
       }
     };
 
-    if (isAddModalOpen || showExportModal) {
+    if (isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal) {
       window.addEventListener('popstate', handlePopState);
     }
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [isAddModalOpen, showExportModal]);
+  }, [isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal]);
+
+  useEffect(() => {
+    let backHandle: { remove: () => void } | undefined;
+    const handler = ({ canGoBack }: { canGoBack: boolean }) => {
+      if (dialog) {
+        setDialog(null);
+        return;
+      }
+      if (isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal) {
+        window.history.back();
+        return;
+      }
+      if (canGoBack) {
+        window.history.back();
+      } else {
+        CapacitorApp.exitApp();
+      }
+    };
+
+    backHandle = CapacitorApp.addListener('backButton', handler);
+
+    return () => {
+      backHandle?.remove();
+    };
+  }, [dialog, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal]);
+
+  useEffect(() => {
+    const handleBackButton = (event: Event) => {
+      if (dialog) {
+        event.preventDefault();
+        setDialog(null);
+        return;
+      }
+      if (isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal) {
+        event.preventDefault();
+        window.history.back();
+      }
+    };
+
+    document.addEventListener('backbutton', handleBackButton);
+    return () => {
+      document.removeEventListener('backbutton', handleBackButton);
+    };
+  }, [dialog, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal]);
 
   // Reset filter on tab change
   useEffect(() => {
     setActiveFilter('all');
+    setSearchQuery('');
+    setFilterDateStart('');
+    setFilterDateEnd('');
+    setFilterPriceMin('');
+    setFilterPriceMax('');
+    setShowAdvancedFilters(false);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeFilter === 'all') return;
+    if (activeTab === 'owned' && !statuses.includes(activeFilter)) {
+      setActiveFilter('all');
+    }
+    if (activeTab === 'wishlist' && !categories.includes(activeFilter)) {
+      setActiveFilter('all');
+    }
+  }, [activeFilter, activeTab, categories, statuses]);
+
+  useEffect(() => {
+    if (!aiConfig.provider || aiConfig.provider === 'disabled') return;
+    const models = getProviderModels(aiConfig.provider);
+    if (!models.length) return;
+    if (!models.some(m => m.id === aiConfig.model)) {
+      const fallbackModel = aiConfig.lastModelByProvider?.[aiConfig.provider] || models[0].id;
+      setAiConfig(prev => ({
+        ...prev,
+        model: fallbackModel,
+        lastModelByProvider: { ...(prev.lastModelByProvider || {}), [prev.provider]: fallbackModel }
+      }));
+    }
+  }, [aiConfig.provider, aiConfig.model, aiConfig.lastModelByProvider]);
 
   // --- Dark Mode Logic ---
   useEffect(() => {
@@ -126,6 +346,63 @@ const App: React.FC = () => {
     }
   }, [appearance]);
 
+  const openAlert = (message: string, title = TEXTS.notice[language]) =>
+    new Promise<void>(resolve => {
+      setDialog({
+        type: 'alert',
+        title,
+        message,
+        confirmText: TEXTS.ok[language],
+        onConfirm: () => {
+          setDialog(null);
+          resolve();
+        },
+        onCancel: () => {
+          setDialog(null);
+          resolve();
+        }
+      });
+    });
+
+  const openConfirm = (message: string, title = TEXTS.confirm[language]) =>
+    new Promise<boolean>(resolve => {
+      setDialog({
+        type: 'confirm',
+        title,
+        message,
+        confirmText: TEXTS.confirm[language],
+        cancelText: TEXTS.cancel[language],
+        onConfirm: () => {
+          setDialog(null);
+          resolve(true);
+        },
+        onCancel: () => {
+          setDialog(null);
+          resolve(false);
+        }
+      });
+    });
+
+  const openPrompt = (title: string, defaultValue = '') =>
+    new Promise<string | null>(resolve => {
+      setDialog({
+        type: 'prompt',
+        title,
+        confirmText: TEXTS.confirm[language],
+        cancelText: TEXTS.cancel[language],
+        defaultValue,
+        placeholder: TEXTS.inputName[language],
+        onConfirm: (value?: string) => {
+          setDialog(null);
+          resolve(value && value.trim() ? value.trim() : null);
+        },
+        onCancel: () => {
+          setDialog(null);
+          resolve(null);
+        }
+      });
+    });
+
   // --- Handlers ---
   const handleSaveItem = (itemData: Partial<Item>) => {
     if (itemData.id) {
@@ -148,26 +425,27 @@ const App: React.FC = () => {
             image: itemData.image,
             usageCount: itemData.usageCount || 0,
             discountRate: itemData.discountRate,
-            channel: itemData.channel
+            channel: itemData.channel,
+            priceHistory: itemData.priceHistory || []
         };
         setItems(prev => [newItem, ...prev]);
     }
-    setEditingItem(null);
+    closeAddModal();
     // Go back in history to close modal (triggers popstate listener)
     window.history.back();
   };
 
-  const handleEditItem = (item: Item) => {
+  const handleEditItem = useCallback((item: Item) => {
       setEditingItem(item);
       setInitialAddMode('manual');
       setIsAddModalOpen(true);
       // Push state to allow back button to close modal
       window.history.pushState(null, '', '');
-  };
+  }, []);
 
   const handleOpenAdd = (mode: 'ai' | 'manual') => {
       setEditingItem(null);
-      setInitialAddMode(mode);
+      setInitialAddMode(aiEnabled ? mode : 'manual');
       setIsAddModalOpen(true);
       // Push state to allow back button to close modal
       window.history.pushState(null, '', '');
@@ -178,39 +456,196 @@ const App: React.FC = () => {
       window.history.back();
   };
 
-  const handleDeleteItem = (id: string) => {
-    if (window.confirm(TEXTS.deleteConfirm[language])) {
-      setItems(prev => prev.filter(i => i.id !== id));
-    }
+  const handleOpenAiSettings = () => {
+      setShowAiSettingsModal(true);
+      window.history.pushState(null, '', '');
   };
 
-  const handleAddUsage = (item: Item) => {
+  const handleCloseAiSettings = () => {
+      window.history.back();
+  };
+
+  const handleOpenDataManage = () => {
+      setShowDataManageModal(true);
+      window.history.pushState(null, '', '');
+  };
+
+  const handleCloseDataManage = () => {
+      window.history.back();
+  };
+
+  const handleDeleteItem = async (id: string) => {
+    const confirmed = await openConfirm(TEXTS.deleteConfirm[language]);
+    if (confirmed) deleteItemById(id);
+  };
+
+  const deleteItemById = (id: string) => {
+    setItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  const handleAddUsage = useCallback((item: Item) => {
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, usageCount: (i.usageCount || 0) + 1 } : i));
+  }, []);
+
+  const handleClearFilters = () => {
+      setActiveFilter('all');
+      setSearchQuery('');
+      setFilterDateStart('');
+      setFilterDateEnd('');
+      setFilterPriceMin('');
+      setFilterPriceMax('');
   };
 
-  // Custom Data Handlers
-  const handleAddCustomCategory = (cat: string) => {
-    if (cat && !customCategories.includes(cat)) {
-        setCustomCategories(prev => [...prev, cat]);
+  // Managed Data Handlers
+  const handleAddCategory = async () => {
+    const value = await openPrompt(TEXTS.addCategory[language]);
+    if (!value) return;
+    if (categories.includes(value)) {
+      await openAlert(TEXTS.alreadyExists[language]);
+      return;
     }
+    setCategories(prev => [...prev, value]);
   };
 
-  const handleAddCustomChannel = (chan: string) => {
-    if (chan && !customChannels.includes(chan)) {
-        setCustomChannels(prev => [...prev, chan]);
+  const handleEditCategory = async (current: string) => {
+    const value = await openPrompt(TEXTS.editLabel[language], current);
+    if (!value || value === current) return;
+    if (categories.includes(value)) {
+      await openAlert(TEXTS.alreadyExists[language]);
+      return;
     }
+    setCategories(prev => prev.map(c => (c === current ? value : c)));
+    setItems(prev => prev.map(i => (i.category === current ? { ...i, category: value } : i)));
   };
 
-  const handleDeleteCustomCategory = (cat: string) => {
-      if (window.confirm(TEXTS.confirmDeleteTag[language])) {
-          setCustomCategories(prev => prev.filter(c => c !== cat));
-      }
+  const handleDeleteCategory = async (current: string) => {
+    if (current === 'other') {
+      await openAlert(TEXTS.requiredTag[language]);
+      return;
+    }
+    const confirmed = await openConfirm(TEXTS.deleteCategoryConfirm[language]);
+    if (!confirmed) return;
+    setCategories(prev => prev.filter(c => c !== current));
+    setItems(prev => prev.map(i => (i.category === current ? { ...i, category: 'other' } : i)));
   };
 
-  const handleDeleteCustomChannel = (chan: string) => {
-      if (window.confirm(TEXTS.confirmDeleteTag[language])) {
-          setCustomChannels(prev => prev.filter(c => c !== chan));
-      }
+  const handleAddStatus = async () => {
+    const value = await openPrompt(TEXTS.addStatus[language]);
+    if (!value) return;
+    if (statuses.includes(value)) {
+      await openAlert(TEXTS.alreadyExists[language]);
+      return;
+    }
+    setStatuses(prev => [...prev, value]);
+  };
+
+  const handleEditStatus = async (current: string) => {
+    const value = await openPrompt(TEXTS.editLabel[language], current);
+    if (!value || value === current) return;
+    if (statuses.includes(value)) {
+      await openAlert(TEXTS.alreadyExists[language]);
+      return;
+    }
+    setStatuses(prev => prev.map(s => (s === current ? value : s)));
+    setItems(prev => prev.map(i => (i.status === current ? { ...i, status: value } : i)));
+  };
+
+  const handleDeleteStatus = async (current: string) => {
+    if (current === 'new') {
+      await openAlert(TEXTS.requiredTag[language]);
+      return;
+    }
+    const confirmed = await openConfirm(TEXTS.deleteStatusConfirm[language]);
+    if (!confirmed) return;
+    setStatuses(prev => prev.filter(s => s !== current));
+    setItems(prev => prev.map(i => (i.status === current ? { ...i, status: 'new' } : i)));
+  };
+
+  const handleAddChannel = async () => {
+    const value = await openPrompt(TEXTS.addChannel[language]);
+    if (!value) return;
+    if (channels.includes(value)) {
+      await openAlert(TEXTS.alreadyExists[language]);
+      return;
+    }
+    setChannels(prev => [...prev, value]);
+  };
+
+  const handleEditChannel = async (current: string) => {
+    const value = await openPrompt(TEXTS.editLabel[language], current);
+    if (!value || value === current) return;
+    if (channels.includes(value)) {
+      await openAlert(TEXTS.alreadyExists[language]);
+      return;
+    }
+    setChannels(prev => prev.map(c => (c === current ? value : c)));
+    setItems(prev => prev.map(i => (i.channel === current ? { ...i, channel: value } : i)));
+  };
+
+  const handleDeleteChannel = async (current: string) => {
+    const confirmed = await openConfirm(TEXTS.deleteChannelConfirm[language]);
+    if (!confirmed) return;
+    setChannels(prev => prev.filter(c => c !== current));
+    setItems(prev => prev.map(i => (i.channel === current ? { ...i, channel: '' } : i)));
+  };
+
+  const handleSelectProvider = (provider: AiProvider) => {
+    if (provider === 'disabled') {
+      setAiConfig(prev => ({ ...prev, provider }));
+      return;
+    }
+    const fallbackModel = aiConfig.lastModelByProvider?.[provider] || getDefaultModel(provider);
+    setAiConfig(prev => ({
+      ...prev,
+      provider,
+      model: fallbackModel,
+      lastModelByProvider: { ...(prev.lastModelByProvider || {}), [provider]: fallbackModel }
+    }));
+  };
+
+  const handleSelectModel = (model: string) => {
+    setAiConfig(prev => ({
+      ...prev,
+      model,
+      lastModelByProvider: { ...(prev.lastModelByProvider || {}), [prev.provider]: model }
+    }));
+  };
+
+  const handleUpdateCredential = (patch: Partial<AiCredentials>) => {
+    setAiConfig(prev => {
+      const provider = prev.provider;
+      const model = prev.model || getDefaultModel(provider);
+      if (!provider || provider === 'disabled' || !model) return prev;
+      const nextCredentials = { ...(prev.credentials || {}) };
+      const providerMap = { ...(nextCredentials[provider] || {}) };
+      const current = providerMap[model] || { apiKey: '', baseUrl: '' };
+      providerMap[model] = { ...current, ...patch };
+      nextCredentials[provider] = providerMap;
+      return { ...prev, credentials: nextCredentials };
+    });
+  };
+
+  const getActiveAiConfig = (config: AiConfig): AiRuntimeConfig | null => {
+    if (!config.provider || config.provider === 'disabled') return null;
+    const model = config.model || getDefaultModel(config.provider);
+    const cred = getCredential(config, config.provider, model);
+    return {
+      provider: config.provider,
+      model,
+      apiKey: cred.apiKey || '',
+      baseUrl: cred.baseUrl || getDefaultBaseUrl(config.provider, model)
+    };
+  };
+
+  const buildExportFileName = () =>
+    `monotracker_backup_${new Date().toISOString().split('T')[0]}.csv`;
+
+  const ensurePublicStoragePermission = async () => {
+    if (Capacitor.getPlatform() !== 'android') return true;
+    const current = await Filesystem.checkPermissions();
+    if (current.publicStorage === 'granted') return true;
+    const requested = await Filesystem.requestPermissions();
+    return requested.publicStorage === 'granted';
   };
 
 
@@ -227,7 +662,16 @@ const App: React.FC = () => {
   };
 
   const executeFileSave = async () => {
-      const fileName = `monotracker_backup_${new Date().toISOString().split('T')[0]}.csv`;
+      const fileName = buildExportFileName();
+      const triggerDownload = (href: string) => {
+          const link = document.createElement('a');
+          link.href = href;
+          link.setAttribute('download', fileName);
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+      };
 
       // Strategy -1: Capacitor Native Plugin (Highest Priority)
       try {
@@ -238,15 +682,37 @@ const App: React.FC = () => {
               mimeType: 'text/csv'
           });
           console.log('Export success via Capacitor:', result.uri);
-          alert(TEXTS.exportSuccess[language]);
+          await openAlert(TEXTS.exportSuccess[language]);
           return; // Stop here if native export works
       } catch (error: any) {
           console.warn('Capacitor export failed or not available:', error);
           // If error is "User cancelled", stop. Otherwise, fall through to other methods.
           if (error.message === 'User cancelled export') return;
       }
+
+      // Strategy 0: Native Filesystem (Capacitor)
+      if (Capacitor.isNativePlatform()) {
+          try {
+              const permissionOk = await ensurePublicStoragePermission();
+              if (!permissionOk) {
+                  await openAlert(TEXTS.saveFailed[language]);
+                  return;
+              }
+              const result = await Filesystem.writeFile({
+                  path: fileName,
+                  data: exportData,
+                  directory: Directory.Documents,
+                  encoding: Encoding.UTF8
+              });
+              console.log('Export success via Filesystem:', result.uri);
+              await openAlert(TEXTS.exportSuccess[language]);
+              return;
+          } catch (error) {
+              console.warn('Filesystem export failed:', error);
+          }
+      }
       
-      // Strategy 0: Legacy Android Bridge (JSBridge - direct window injection)
+      // Strategy 1: Legacy Android Bridge (JSBridge - direct window injection)
       if (window.Android && window.Android.saveCSV) {
           try {
               window.Android.saveCSV(exportData, fileName);
@@ -256,7 +722,7 @@ const App: React.FC = () => {
           }
       }
 
-      // Strategy 1: File System Access API (Native "Save As" intent if supported by browser)
+      // Strategy 2: File System Access API (Native "Save As" intent if supported by browser)
       try {
           if (window.showSaveFilePicker) {
               const handle = await window.showSaveFilePicker({
@@ -276,28 +742,57 @@ const App: React.FC = () => {
           // Fall through to legacy method
       }
 
-      // Strategy 2: Data URI Download (Bypasses Blob Registry restrictions in some WebViews)
+      // Strategy 3: Blob URL Download (works in most mobile browsers)
+      try {
+          const blob = new Blob([exportData], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          triggerDownload(url);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          return;
+      } catch (e) {
+          console.warn('Blob download failed:', e);
+      }
+
+      // Strategy 4: Data URI Download (Bypasses Blob Registry restrictions in some WebViews)
       try {
           // Use Base64 to ensure encoding is preserved across strict boundaries
           const base64Content = btoa(unescape(encodeURIComponent(exportData)));
           const dataUri = `data:text/csv;base64,${base64Content}`;
-          
-          const link = document.createElement('a');
-          link.href = dataUri;
-          link.setAttribute('download', fileName);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          triggerDownload(dataUri);
       } catch (e) {
           console.error('Data URI download failed:', e);
-          alert('Save failed. Please copy the text below.');
+          await openAlert(TEXTS.saveFailed[language]);
       }
   };
 
   const executeShare = async () => {
-      const fileName = `monotracker_backup_${new Date().toISOString().split('T')[0]}.csv`;
+      const fileName = buildExportFileName();
+
+      if (Capacitor.isNativePlatform()) {
+          try {
+              const result = await Filesystem.writeFile({
+                  path: fileName,
+                  data: exportData,
+                  directory: Directory.Cache,
+                  encoding: Encoding.UTF8
+              });
+              await Share.share({
+                  files: [result.uri],
+                  title: 'MonoTracker Backup',
+                  dialogTitle: 'MonoTracker Backup'
+              });
+              return;
+          } catch (e) {
+              const message = String((e as any)?.message || e || '');
+              if (/cancel|canceled|cancelled/i.test(message)) {
+                  return;
+              }
+              console.warn('Native share failed:', e);
+              await openAlert(TEXTS.shareNotSupported[language]);
+          }
+      }
+
       const file = new File([exportData], fileName, { type: 'text/csv' });
-      
       try {
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
               await navigator.share({
@@ -305,7 +800,7 @@ const App: React.FC = () => {
                   title: 'MonoTracker Backup'
               });
           } else {
-              alert('Sharing not supported on this device.');
+              await openAlert(TEXTS.shareNotSupported[language]);
           }
       } catch (e) {
           console.warn('Share failed:', e);
@@ -315,9 +810,9 @@ const App: React.FC = () => {
   const executeCopy = async () => {
       try {
           await navigator.clipboard.writeText(exportData);
-          alert(TEXTS.copySuccess[language]);
+          await openAlert(TEXTS.copySuccess[language]);
       } catch (e) {
-          alert('Copy failed.');
+          await openAlert(TEXTS.copyFailed[language]);
       }
   };
 
@@ -335,6 +830,16 @@ const App: React.FC = () => {
 
   // --- Computed ---
   const themeColors = THEMES[theme];
+  const aiEnabled = aiConfig.provider !== 'disabled';
+  const activeAiConfig = getActiveAiConfig(aiConfig);
+  const providerModels = aiEnabled ? getProviderModels(aiConfig.provider) : [];
+  const selectedModel = aiEnabled ? (aiConfig.model || providerModels[0]?.id || '') : '';
+  const currentCredential = aiEnabled && selectedModel
+    ? getCredential(aiConfig, aiConfig.provider, selectedModel)
+    : { apiKey: '', baseUrl: '' };
+  const baseUrlPlaceholder = aiEnabled && selectedModel
+    ? getDefaultBaseUrl(aiConfig.provider, selectedModel)
+    : '';
   
   // 1. First filter by tab
   const tabItems = useMemo(() => items.filter(i => {
@@ -350,44 +855,82 @@ const App: React.FC = () => {
 
     if (activeTab === 'owned') {
         // For Owned: Filter by Status
-        const standard = ['new', 'used', 'broken', 'sold', 'emptied'];
-        standard.forEach(s => options.add(s));
-        // Add custom statuses from items
+        statuses.forEach(s => options.add(s));
         tabItems.forEach(i => {
             if (i.status) options.add(i.status);
         });
     } else if (activeTab === 'wishlist') {
         // For Wishlist: Filter by Category
-        const standard = Object.keys(CATEGORY_CONFIG);
-        standard.forEach(c => options.add(c));
-        // Add custom categories from items
+        categories.forEach(c => options.add(c));
         tabItems.forEach(i => {
             if (i.category) options.add(i.category);
         });
     }
     
     return Array.from(options);
-  }, [tabItems, activeTab]);
+  }, [tabItems, activeTab, categories, statuses]);
 
   // 3. Filter by selected option
   const finalDisplayItems = useMemo(() => {
-      if (activeFilter === 'all') return tabItems;
-      if (activeTab === 'owned') return tabItems.filter(i => i.status === activeFilter);
-      if (activeTab === 'wishlist') return tabItems.filter(i => i.category === activeFilter);
-      return tabItems;
-  }, [tabItems, activeFilter, activeTab]);
+      const query = searchQuery.trim().toLowerCase();
+      const minPrice = filterPriceMin ? parseFloat(filterPriceMin) : null;
+      const maxPrice = filterPriceMax ? parseFloat(filterPriceMax) : null;
+
+      return tabItems.filter(item => {
+        if (activeFilter !== 'all') {
+          if (activeTab === 'owned' && item.status !== activeFilter) return false;
+          if (activeTab === 'wishlist' && item.category !== activeFilter) return false;
+        }
+
+        if (query) {
+          const channelLabel = item.channel ? getChannelLabel(item.channel) : '';
+          const haystack = [
+            item.name,
+            item.note,
+            item.link,
+            item.channel,
+            channelLabel,
+            item.status,
+            item.category
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          if (!haystack.includes(query)) return false;
+        }
+
+        if (filterDateStart && item.purchaseDate < filterDateStart) return false;
+        if (filterDateEnd && item.purchaseDate > filterDateEnd) return false;
+
+        if (minPrice !== null && !Number.isNaN(minPrice) && item.price < minPrice) return false;
+        if (maxPrice !== null && !Number.isNaN(maxPrice) && item.price > maxPrice) return false;
+
+        return true;
+      });
+  }, [
+      tabItems,
+      activeFilter,
+      activeTab,
+      searchQuery,
+      filterDateStart,
+      filterDateEnd,
+      filterPriceMin,
+      filterPriceMax,
+      getChannelLabel
+  ]);
   
-  const totalValue = useMemo(() => items.filter(i => i.type === 'owned').reduce((acc, curr) => acc + curr.price, 0), [items]);
+  const ownedItems = useMemo(() => items.filter(i => i.type === 'owned'), [items]);
+  const totalValue = useMemo(() => ownedItems.reduce((acc, curr) => acc + curr.price, 0), [ownedItems]);
 
   // --- STATISTICS CALCULATIONS ---
   const stats = useMemo(() => {
-    const ownedItems = items.filter(i => i.type === 'owned');
     const totalCount = ownedItems.length;
     const totalVal = ownedItems.reduce((acc, i) => acc + i.price, 0);
+    const channelLabelFallback = TEXTS.channelUnknown[language];
     
     // Category Stats (Value & Count)
     // Gather all unique categories (both config and custom)
-    const allCats = new Set([...Object.keys(CATEGORY_CONFIG), ...ownedItems.map(i => i.category)]);
+    const allCats = new Set([...categories, ...ownedItems.map(i => i.category)]);
     
     const catStats = Array.from(allCats).map(cat => {
         const catItems = ownedItems.filter(i => (i.category || 'other') === cat);
@@ -441,8 +984,41 @@ const App: React.FC = () => {
     // Timeline Data (sorted by date, highlighting status)
     const timelineData = [...ownedItems].sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime());
 
-    return { totalCount, totalVal, catStatsByValue, catStatsByCount, statusStats, durationBuckets, timelineData };
-  }, [items]);
+    // Monthly Spend Trend
+    const monthMap = new Map<string, number>();
+    ownedItems.forEach(item => {
+      if (!item.purchaseDate) return;
+      const monthKey = item.purchaseDate.slice(0, 7);
+      monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + item.price);
+    });
+    const monthlySpend = Array.from(monthMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([month, value]) => ({ month, value }));
+
+    // Channel Spend Trend
+    const channelMap = new Map<string, { value: number; count: number }>();
+    ownedItems.forEach(item => {
+      const rawChannel = item.channel?.trim();
+      const key = rawChannel ? normalizeChannelValue(rawChannel) : channelLabelFallback;
+      const current = channelMap.get(key) || { value: 0, count: 0 };
+      channelMap.set(key, { value: current.value + item.price, count: current.count + 1 });
+    });
+    const channelStats = Array.from(channelMap.entries())
+      .map(([channel, data]) => ({
+        channel,
+        value: data.value,
+        count: data.count,
+        percentVal: totalVal > 0 ? (data.value / totalVal) * 100 : 0
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    return { totalCount, totalVal, catStatsByValue, catStatsByCount, statusStats, durationBuckets, timelineData, monthlySpend, channelStats };
+  }, [ownedItems, categories, normalizeChannelValue, language]);
+
+  const monthlySpendMax = useMemo(
+    () => stats.monthlySpend.reduce((acc, curr) => Math.max(acc, curr.value), 1),
+    [stats.monthlySpend]
+  );
 
   // Helper for localized status label
   const getStatusLabel = (s: string) => {
@@ -488,7 +1064,7 @@ const App: React.FC = () => {
              <p className="opacity-60 text-sm">{TEXTS.tabStats[language]}</p>
         ) : (
             <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-light">¥{activeTab === 'owned' ? totalValue.toLocaleString() : '0'}</span>
+                <span className="text-4xl font-light">{currencySymbol}{activeTab === 'owned' ? totalValue.toLocaleString() : '0'}</span>
                 <span className="text-sm opacity-60 uppercase tracking-widest font-semibold">{TEXTS.totalValue[language]}</span>
             </div>
         )}
@@ -505,13 +1081,38 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                       <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
                           <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.totalValue[language]}</p>
-                          <p className={`text-2xl font-light ${themeColors.secondary}`}>¥{stats.totalVal.toLocaleString()}</p>
+                          <p className={`text-2xl font-light ${themeColors.secondary}`}>{currencySymbol}{stats.totalVal.toLocaleString()}</p>
                       </div>
                       <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
                           <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.itemCount[language]}</p>
                           <p className="text-2xl font-light text-gray-800 dark:text-gray-100">{stats.totalCount}</p>
                       </div>
                   </div>
+             </div>
+
+             {/* 1.5 Monthly Spend Trend */}
+             <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+                 <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
+                     <ICONS.BarChart2 size={16}/> {TEXTS.statsMonthlyTrend[language]}
+                 </h3>
+                 <div className="flex items-end justify-between h-32 gap-2">
+                     {stats.monthlySpend.map(({ month, value }) => {
+                         const height = (value / monthlySpendMax) * 100;
+                         return (
+                             <div key={month} className="flex flex-col items-center flex-1 group">
+                                 <div className="relative w-full bg-gray-100 dark:bg-slate-800 rounded-t-lg overflow-hidden flex items-end justify-center h-full">
+                                     <div 
+                                        className={`w-full transition-all duration-500 ${themeColors.primary}`} 
+                                        style={{ height: `${height}%`, opacity: value > 0 ? 0.8 : 0.1 }} 
+                                     />
+                                     <span className="absolute bottom-1 text-[10px] font-bold text-gray-500 dark:text-gray-300">{currencySymbol}{value.toFixed(0)}</span>
+                                 </div>
+                                 <span className="text-[10px] mt-2 text-gray-400 font-medium whitespace-nowrap">{month}</span>
+                             </div>
+                         );
+                     })}
+                     {stats.monthlySpend.length === 0 && <p className="text-xs opacity-40">{TEXTS.none[language]}</p>}
+                 </div>
              </div>
 
              {/* 2. Status Distribution */}
@@ -561,13 +1162,30 @@ const App: React.FC = () => {
                  </div>
              </div>
 
-             {/* 4. Category Value Distribution */}
+             {/* 4. Category Spend Trend (Top N) */}
              <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
-                 <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
-                     <ICONS.BarChart2 size={16}/> {TEXTS.statsValDist[language]}
-                 </h3>
+                 <div className="flex items-center justify-between mb-4">
+                   <h3 className="text-sm font-bold opacity-70 flex items-center gap-2">
+                       <ICONS.BarChart2 size={16}/> {TEXTS.statsCategoryTrend[language]}
+                   </h3>
+                   <div className="flex gap-2">
+                     {[3, 5, 10].map(count => (
+                       <button
+                         key={count}
+                         onClick={() => setTopN(count)}
+                         className={`px-2 py-1 text-[10px] font-bold rounded-full transition-all ${
+                           topN === count
+                             ? `${themeColors.primary} text-white`
+                             : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400'
+                         }`}
+                       >
+                         TOP {count}
+                       </button>
+                     ))}
+                   </div>
+                 </div>
                  <div className="space-y-4">
-                     {stats.catStatsByValue.slice(0, 6).map((stat) => { // Top 6
+                     {stats.catStatsByValue.slice(0, topN).map((stat) => {
                          const conf = CATEGORY_CONFIG[stat.cat] || CATEGORY_CONFIG['other'];
                          const Icon = conf.icon;
                          return (
@@ -579,7 +1197,7 @@ const App: React.FC = () => {
                                          </div>
                                          <span className="text-sm font-medium">{getCategoryLabel(stat.cat)}</span>
                                      </div>
-                                     <span className="text-sm font-bold">¥{stat.value.toLocaleString()}</span>
+                                     <span className="text-sm font-bold">?{stat.value.toLocaleString()}</span>
                                  </div>
                                  <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                                      <div 
@@ -590,6 +1208,31 @@ const App: React.FC = () => {
                              </div>
                          );
                      })}
+                     {stats.catStatsByValue.length === 0 && <p className="text-center text-xs opacity-40">{TEXTS.none[language]}</p>}
+                 </div>
+             </div>
+
+             {/* 4.5 Channel Spend Trend */}
+             <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+                 <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
+                     <ICONS.BarChart2 size={16}/> {TEXTS.statsChannelTrend[language]}
+                 </h3>
+                 <div className="space-y-4">
+                     {stats.channelStats.map((stat) => (
+                       <div key={stat.channel}>
+                         <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium">{getChannelLabel(stat.channel)}</span>
+                           <span className="text-sm font-bold">?{stat.value.toLocaleString()}</span>
+                         </div>
+                         <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                           <div
+                             className={`h-full rounded-full ${themeColors.primary}`}
+                             style={{ width: `${stat.percentVal}%`, opacity: 0.7 }}
+                           />
+                         </div>
+                       </div>
+                     ))}
+                     {stats.channelStats.length === 0 && <p className="text-center text-xs opacity-40">{TEXTS.none[language]}</p>}
                  </div>
              </div>
 
@@ -654,43 +1297,26 @@ const App: React.FC = () => {
       {/* PROFILE TAB (Simplified) */}
       {activeTab === 'profile' && (
         <div className="p-6 space-y-6 pb-32">
-          {/* Data Management Section */}
-          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm space-y-6 transition-colors">
-            <h3 className="flex items-center gap-2 font-bold opacity-70 mb-2">
-                <ICONS.Database size={18}/> {TEXTS.manageData[language]}
-            </h3>
-            
-            {/* Custom Categories */}
-            <div>
-                 <h4 className="text-sm font-semibold mb-3 opacity-60">{TEXTS.manageCat[language]}</h4>
-                 <div className="flex flex-wrap gap-2">
-                     {customCategories.length === 0 && <p className="text-xs opacity-40">None</p>}
-                     {customCategories.map(cat => (
-                         <div key={cat} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 text-sm">
-                             <span>{cat}</span>
-                             <button onClick={() => handleDeleteCustomCategory(cat)} className="opacity-50 hover:opacity-100">
-                                 <ICONS.X size={14}/>
-                             </button>
-                         </div>
-                     ))}
-                 </div>
-            </div>
-
-            {/* Custom Channels */}
-            <div>
-                 <h4 className="text-sm font-semibold mb-3 opacity-60">{TEXTS.manageChan[language]}</h4>
-                 <div className="flex flex-wrap gap-2">
-                     {customChannels.length === 0 && <p className="text-xs opacity-40">None</p>}
-                     {customChannels.map(chan => (
-                         <div key={chan} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 text-sm">
-                             <span>{chan}</span>
-                             <button onClick={() => handleDeleteCustomChannel(chan)} className="opacity-50 hover:opacity-100">
-                                 <ICONS.X size={14}/>
-                             </button>
-                         </div>
-                     ))}
-                 </div>
-            </div>
+          {/* Quick Access */}
+          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-4 shadow-sm space-y-3 transition-colors">
+            <button
+              onClick={handleOpenAiSettings}
+              className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800"
+            >
+              <span className="flex items-center gap-3 font-semibold">
+                <ICONS.Sparkles size={20}/> {TEXTS.aiSettings[language]}
+              </span>
+              <ICONS.ChevronRight size={18} className="opacity-40" />
+            </button>
+            <button
+              onClick={handleOpenDataManage}
+              className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800"
+            >
+              <span className="flex items-center gap-3 font-semibold">
+                <ICONS.Database size={20}/> {TEXTS.manageData[language]}
+              </span>
+              <ICONS.ChevronRight size={18} className="opacity-40" />
+            </button>
           </div>
 
           {/* Settings Cards */}
@@ -733,20 +1359,6 @@ const App: React.FC = () => {
                     </button>
                 ))}
               </div>
-            </div>
-
-            {/* Toggle AI Button */}
-             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 opacity-70">
-                    <ICONS.Sparkles size={18} />
-                    <span className="font-bold">{TEXTS.showAiButton[language]}</span>
-                </div>
-                <button 
-                    onClick={() => setShowAiFab(!showAiFab)}
-                    className={`w-12 h-7 rounded-full transition-colors duration-300 relative ${showAiFab ? themeColors.primary : 'bg-gray-200 dark:bg-slate-700'}`}
-                >
-                    <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-300 ${showAiFab ? 'left-6' : 'left-1'}`} />
-                </button>
             </div>
 
             {/* Language */}
@@ -827,9 +1439,240 @@ const App: React.FC = () => {
           </div>
       )}
 
+      <SheetModal
+        isOpen={showAiSettingsModal}
+        title={TEXTS.aiSettings[language]}
+        theme={theme}
+        onClose={handleCloseAiSettings}
+      >
+        <div className="space-y-5">
+          <div>
+            <p className="text-xs font-semibold opacity-50 mb-3 uppercase">{TEXTS.aiProvider[language]}</p>
+            <div className="grid grid-cols-2 gap-2">
+              {AI_PROVIDERS.map(provider => {
+                const isSelected = aiConfig.provider === provider.id;
+                return (
+                  <button
+                    key={provider.id}
+                    onClick={() => handleSelectProvider(provider.id)}
+                    className={`py-3 rounded-xl text-xs font-semibold transition-all ${
+                      isSelected
+                        ? `${themeColors.primary} text-white shadow-md`
+                        : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'
+                    }`}
+                  >
+                    {TEXTS[provider.labelKey][language]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {aiEnabled && (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.aiModel[language]}</label>
+                <div className="relative">
+                  <select
+                    value={aiConfig.model || providerModels[0]?.id || ''}
+                    onChange={(e) => handleSelectModel(e.target.value)}
+                    className="w-full appearance-none p-4 pr-10 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                    style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
+                  >
+                    {providerModels.map(model => (
+                      <option key={model.id} value={model.id}>{model.label}</option>
+                    ))}
+                  </select>
+                  <ICONS.ChevronDown size={16} className="absolute right-4 top-4 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.aiApiKey[language]}</label>
+                <input
+                  type="text"
+                  value={currentCredential.apiKey}
+                  onChange={(e) => handleUpdateCredential({ apiKey: e.target.value })}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                  style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.aiBaseUrl[language]}</label>
+                <input
+                  value={currentCredential.baseUrl || ''}
+                  onChange={(e) => handleUpdateCredential({ baseUrl: e.target.value })}
+                  className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                  style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
+                  placeholder={baseUrlPlaceholder}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </SheetModal>
+
+      <SheetModal
+        isOpen={showDataManageModal}
+        title={TEXTS.manageData[language]}
+        theme={theme}
+        onClose={handleCloseDataManage}
+      >
+        <div className="space-y-6">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold opacity-60">{TEXTS.manageCat[language]}</h4>
+              <button onClick={handleAddCategory} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300">
+                <ICONS.Plus size={14}/> {TEXTS.addCategory[language]}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {categories.length === 0 && <p className="text-xs opacity-40">{TEXTS.none[language]}</p>}
+              {categories.map(cat => (
+                <div key={cat} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 text-sm">
+                  <span className="max-w-[120px] truncate">{cat}</span>
+                  <button onClick={() => handleEditCategory(cat)} className="opacity-60 hover:opacity-100">
+                    <ICONS.Edit3 size={14}/>
+                  </button>
+                  <button onClick={() => handleDeleteCategory(cat)} className="opacity-60 hover:opacity-100">
+                    <ICONS.Trash2 size={14}/>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold opacity-60">{TEXTS.manageStatus[language]}</h4>
+              <button onClick={handleAddStatus} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300">
+                <ICONS.Plus size={14}/> {TEXTS.addStatus[language]}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {statuses.length === 0 && <p className="text-xs opacity-40">{TEXTS.none[language]}</p>}
+              {statuses.map(status => (
+                <div key={status} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 text-sm">
+                  <span className="max-w-[120px] truncate">{status}</span>
+                  <button onClick={() => handleEditStatus(status)} className="opacity-60 hover:opacity-100">
+                    <ICONS.Edit3 size={14}/>
+                  </button>
+                  <button onClick={() => handleDeleteStatus(status)} className="opacity-60 hover:opacity-100">
+                    <ICONS.Trash2 size={14}/>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold opacity-60">{TEXTS.manageChan[language]}</h4>
+              <button onClick={handleAddChannel} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300">
+                <ICONS.Plus size={14}/> {TEXTS.addChannel[language]}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {channels.length === 0 && <p className="text-xs opacity-40">{TEXTS.none[language]}</p>}
+              {channels.map(chan => (
+                <div key={chan} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 text-sm">
+                  <span className="max-w-[120px] truncate">{chan}</span>
+                  <button onClick={() => handleEditChannel(chan)} className="opacity-60 hover:opacity-100">
+                    <ICONS.Edit3 size={14}/>
+                  </button>
+                  <button onClick={() => handleDeleteChannel(chan)} className="opacity-60 hover:opacity-100">
+                    <ICONS.Trash2 size={14}/>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </SheetModal>
+
       {/* OWNED / WISHLIST VIEWS */}
       {(activeTab === 'owned' || activeTab === 'wishlist') && (
         <>
+            {/* Search & Advanced Filters */}
+            <div className="px-6 mb-3 space-y-3">
+                <div className="flex gap-2">
+                    <div className="relative flex-1">
+                        <ICONS.Search size={16} className="absolute left-4 top-4 text-gray-400" />
+                        <input
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder={TEXTS.searchPlaceholder[language]}
+                            className="w-full p-4 pl-10 bg-white dark:bg-slate-900 dark:text-white rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm"
+                        />
+                    </div>
+                    <button
+                        onClick={() => setShowAdvancedFilters(prev => !prev)}
+                        className="px-4 py-3 rounded-2xl bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 text-xs font-semibold flex items-center gap-2"
+                    >
+                        <ICONS.SlidersHorizontal size={16} />
+                        {TEXTS.advancedFilter[language]}
+                    </button>
+                </div>
+
+                {showAdvancedFilters && (
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                          <div>
+                              <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.dateStart[language]}</label>
+                              <input
+                                  type="date"
+                                  value={filterDateStart}
+                                  onChange={(e) => setFilterDateStart(e.target.value)}
+                                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-white rounded-xl border border-gray-200 dark:border-slate-700 [color-scheme:light] dark:[color-scheme:dark]"
+                              />
+                          </div>
+                          <div>
+                              <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.dateEnd[language]}</label>
+                              <input
+                                  type="date"
+                                  value={filterDateEnd}
+                                  onChange={(e) => setFilterDateEnd(e.target.value)}
+                                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-white rounded-xl border border-gray-200 dark:border-slate-700 [color-scheme:light] dark:[color-scheme:dark]"
+                              />
+                          </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                          <div>
+                              <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.priceMin[language]}</label>
+                              <input
+                                  type="number"
+                                  value={filterPriceMin}
+                                  onChange={(e) => setFilterPriceMin(e.target.value)}
+                                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-white rounded-xl border border-gray-200 dark:border-slate-700"
+                              />
+                          </div>
+                          <div>
+                              <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.priceMax[language]}</label>
+                              <input
+                                  type="number"
+                                  value={filterPriceMax}
+                                  onChange={(e) => setFilterPriceMax(e.target.value)}
+                                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-white rounded-xl border border-gray-200 dark:border-slate-700"
+                              />
+                          </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <button
+                          onClick={handleClearFilters}
+                          className="text-xs font-semibold text-gray-500 dark:text-gray-300 px-3 py-2 rounded-full bg-gray-100 dark:bg-slate-800"
+                        >
+                          {TEXTS.clearFilter[language]}
+                        </button>
+                      </div>
+                  </div>
+                )}
+            </div>
+
             {/* Filter Chips (Dynamic: Status for Owned, Category for Wishlist) */}
             <div className="px-6 mb-2">
                 <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
@@ -878,7 +1721,7 @@ const App: React.FC = () => {
       {(activeTab === 'owned' || activeTab === 'wishlist') && (
         <div className="fixed right-6 bottom-28 z-40 flex flex-col items-end gap-4 pointer-events-none">
             {/* Manual Add - Secondary (Only show if AI is enabled) */}
-            {showAiFab && (
+            {aiEnabled && (
                 <div className="flex items-center gap-2 pointer-events-auto">
                 <button
                     onClick={() => handleOpenAdd('manual')}
@@ -892,10 +1735,10 @@ const App: React.FC = () => {
             {/* Primary Add Button (Acts as AI if enabled, or Manual if AI disabled) */}
             <div className="flex items-center gap-2 pointer-events-auto">
                 <button
-                    onClick={() => handleOpenAdd(showAiFab ? 'ai' : 'manual')}
+                    onClick={() => handleOpenAdd(aiEnabled ? 'ai' : 'manual')}
                     className={`flex items-center justify-center w-14 h-14 rounded-[1.5rem] shadow-xl text-white transition-transform hover:scale-105 active:scale-95 ${themeColors.primary}`}
                 >
-                    {showAiFab ? <ICONS.Sparkles size={24} /> : <ICONS.Plus size={28} />}
+                    {aiEnabled ? <ICONS.Sparkles size={24} /> : <ICONS.Plus size={28} />}
                 </button>
             </div>
         </div>
@@ -944,19 +1787,39 @@ const App: React.FC = () => {
         </button>
       </div>
 
+      {dialog && (
+        <Dialog
+          isOpen={true}
+          type={dialog.type}
+          title={dialog.title}
+          message={dialog.message}
+          confirmText={dialog.confirmText}
+          cancelText={dialog.cancelText}
+          theme={theme}
+          defaultValue={dialog.defaultValue}
+          placeholder={dialog.placeholder}
+          onConfirm={dialog.onConfirm}
+          onCancel={dialog.onCancel}
+        />
+      )}
+
       <AddItemModal 
         isOpen={isAddModalOpen} 
         onClose={handleCloseModal}
         onSave={handleSaveItem}
+        onDelete={deleteItemById}
+        onAlert={openAlert}
+        onConfirm={openConfirm}
         language={language}
         theme={theme}
+        aiConfig={activeAiConfig}
+        aiEnabled={aiEnabled}
         activeTab={activeTab === 'wishlist' ? 'wishlist' : 'owned'}
         initialItem={editingItem}
         initialMode={initialAddMode}
-        customCategories={customCategories}
-        customChannels={customChannels}
-        onAddCategory={handleAddCustomCategory}
-        onAddChannel={handleAddCustomChannel}
+        categories={categories}
+        statuses={statuses}
+        channels={channels}
       />
     </div>
   );
