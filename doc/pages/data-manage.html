@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MonoTracker - Data Manage</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script>
+    tailwind = { config: { theme: { extend: { fontFamily: { display: ['"Manrope"','"Noto Sans SC"','sans-serif'] } } } } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,body { height: 100%; }
+    body { font-family: 'Manrope','Noto Sans SC',sans-serif; }
+    .phone { width: 390px; height: 844px; }
+  </style>
+</head>
+<body class="bg-slate-100">
+  <div class="phone mx-auto bg-[#EEF4FF] rounded-[40px] shadow-2xl overflow-hidden relative">
+    <div class="h-full px-5 pt-4 pb-6">
+      <div class="flex items-center justify-between text-xs text-slate-400">
+        <span>12:25</span>
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-wifi"></i>
+          <i class="fa-solid fa-signal"></i>
+          <i class="fa-solid fa-battery-three-quarters"></i>
+        </div>
+      </div>
+      <div class="mt-6 text-2xl font-extrabold text-[#1F3B8E]">MonoTracker</div>
+    </div>
+
+    <div class="absolute inset-0 bg-slate-900/20 backdrop-blur-sm"></div>
+
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-[32px] px-5 py-6 shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold text-slate-800">数据管理</h2>
+        <button class="w-10 h-10 rounded-full bg-slate-100 text-slate-500">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="mt-5">
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-slate-500">分类管理</span>
+          <button class="px-3 py-1 rounded-full bg-[#EEF4FF] text-[#2B63F1] text-sm">+ 添加分类</button>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">
+            digital
+            <i class="fa-regular fa-pen-to-square text-slate-400"></i>
+            <i class="fa-regular fa-trash-can text-slate-400"></i>
+          </span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">
+            fashion
+            <i class="fa-regular fa-pen-to-square text-slate-400"></i>
+            <i class="fa-regular fa-trash-can text-slate-400"></i>
+          </span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">
+            home
+            <i class="fa-regular fa-pen-to-square text-slate-400"></i>
+            <i class="fa-regular fa-trash-can text-slate-400"></i>
+          </span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">
+            beauty
+            <i class="fa-regular fa-pen-to-square text-slate-400"></i>
+            <i class="fa-regular fa-trash-can text-slate-400"></i>
+          </span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">
+            books
+            <i class="fa-regular fa-pen-to-square text-slate-400"></i>
+            <i class="fa-regular fa-trash-can text-slate-400"></i>
+          </span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">
+            sports
+            <i class="fa-regular fa-pen-to-square text-slate-400"></i>
+            <i class="fa-regular fa-trash-can text-slate-400"></i>
+          </span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">
+            health
+            <i class="fa-regular fa-pen-to-square text-slate-400"></i>
+            <i class="fa-regular fa-trash-can text-slate-400"></i>
+          </span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">
+            other
+            <i class="fa-regular fa-pen-to-square text-slate-400"></i>
+            <i class="fa-regular fa-trash-can text-slate-400"></i>
+          </span>
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-slate-500">状态管理</span>
+          <button class="px-3 py-1 rounded-full bg-[#EEF4FF] text-[#2B63F1] text-sm">+ 添加状态</button>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">new <i class="fa-regular fa-pen-to-square text-slate-400"></i> <i class="fa-regular fa-trash-can text-slate-400"></i></span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">used <i class="fa-regular fa-pen-to-square text-slate-400"></i> <i class="fa-regular fa-trash-can text-slate-400"></i></span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">broken <i class="fa-regular fa-pen-to-square text-slate-400"></i> <i class="fa-regular fa-trash-can text-slate-400"></i></span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">sold <i class="fa-regular fa-pen-to-square text-slate-400"></i> <i class="fa-regular fa-trash-can text-slate-400"></i></span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">emptied <i class="fa-regular fa-pen-to-square text-slate-400"></i> <i class="fa-regular fa-trash-can text-slate-400"></i></span>
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-slate-500">来源管理</span>
+          <button class="px-3 py-1 rounded-full bg-[#EEF4FF] text-[#2B63F1] text-sm">+ 添加来源</button>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">JD <i class="fa-regular fa-pen-to-square text-slate-400"></i> <i class="fa-regular fa-trash-can text-slate-400"></i></span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">Taobao <i class="fa-regular fa-pen-to-square text-slate-400"></i> <i class="fa-regular fa-trash-can text-slate-400"></i></span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">PDD <i class="fa-regular fa-pen-to-square text-slate-400"></i> <i class="fa-regular fa-trash-can text-slate-400"></i></span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">Xianyu <i class="fa-regular fa-pen-to-square text-slate-400"></i> <i class="fa-regular fa-trash-can text-slate-400"></i></span>
+          <span class="px-3 py-2 rounded-full bg-[#F5F7FF] text-slate-600 flex items-center gap-2">Douyin <i class="fa-regular fa-pen-to-square text-slate-400"></i> <i class="fa-regular fa-trash-can text-slate-400"></i></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

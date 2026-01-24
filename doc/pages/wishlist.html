@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MonoTracker - Wishlist</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script>
+    tailwind = { config: { theme: { extend: { fontFamily: { display: ['"Manrope"','"Noto Sans SC"','sans-serif'] } } } } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,body { height: 100%; }
+    body { font-family: 'Manrope','Noto Sans SC',sans-serif; }
+    .phone { width: 390px; height: 844px; }
+  </style>
+</head>
+<body class="bg-slate-100">
+  <div class="phone mx-auto bg-[#EEF4FF] rounded-[40px] shadow-2xl overflow-hidden">
+    <div class="h-full px-5 pt-4 pb-6 relative">
+      <div class="flex items-center justify-between text-xs text-slate-500">
+        <span>12:25</span>
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-wifi"></i>
+          <i class="fa-solid fa-signal"></i>
+          <i class="fa-solid fa-battery-three-quarters"></i>
+        </div>
+      </div>
+
+      <div class="mt-5">
+        <h1 class="text-3xl font-extrabold text-[#1F3B8E]">MonoTracker</h1>
+        <div class="flex items-end gap-3 mt-2">
+          <span class="text-3xl font-semibold text-[#2B63F1]">￥0</span>
+          <span class="text-sm text-slate-500">总价值</span>
+        </div>
+      </div>
+
+      <div class="mt-5 flex gap-3">
+        <div class="flex-1 bg-white rounded-2xl px-4 py-3 flex items-center gap-2 shadow-sm">
+          <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+          <span class="text-slate-400 text-sm">搜索名称/备注/渠道...</span>
+        </div>
+        <div class="w-28 bg-white rounded-2xl px-3 py-3 flex items-center justify-center gap-2 shadow-sm text-slate-600 text-sm">
+          <i class="fa-solid fa-sliders"></i>
+          高级筛选
+        </div>
+      </div>
+
+      <div class="mt-4 bg-white rounded-3xl p-4 shadow-sm">
+        <div class="grid grid-cols-2 gap-4 text-sm text-slate-500">
+          <div>
+            <div class="text-xs text-slate-400 mb-2">开始日期</div>
+            <div class="bg-[#F5F7FF] rounded-2xl px-3 py-3 flex items-center justify-between">
+              <span class="text-slate-400">请选择</span>
+              <i class="fa-solid fa-chevron-down text-slate-400"></i>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 mb-2">结束日期</div>
+            <div class="bg-[#F5F7FF] rounded-2xl px-3 py-3 flex items-center justify-between">
+              <span class="text-slate-400">请选择</span>
+              <i class="fa-solid fa-chevron-down text-slate-400"></i>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 mb-2">最低价格</div>
+            <div class="bg-[#F5F7FF] rounded-2xl px-3 py-3 text-slate-400">￥0</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400 mb-2">最高价格</div>
+            <div class="bg-[#F5F7FF] rounded-2xl px-3 py-3 text-slate-400">￥0</div>
+          </div>
+        </div>
+        <div class="mt-4 flex justify-end">
+          <button class="px-4 py-2 rounded-full bg-[#F1F5FF] text-[#2B63F1] text-sm font-semibold">清空筛选</button>
+        </div>
+      </div>
+
+      <div class="mt-4 flex gap-3 text-sm items-center">
+        <span class="px-4 py-2 rounded-full bg-[#2B63F1] text-white font-semibold">全部</span>
+        <span class="px-4 py-2 rounded-full bg-white text-slate-500 flex items-center gap-2">
+          <i class="fa-solid fa-mobile-screen-button"></i>
+          数码
+        </span>
+        <span class="px-4 py-2 rounded-full bg-white text-slate-500 flex items-center gap-2">
+          <i class="fa-solid fa-shirt"></i>
+          服饰
+        </span>
+        <span class="px-4 py-2 rounded-full bg-white text-slate-500 flex items-center gap-2">
+          <i class="fa-solid fa-couch"></i>
+          家居
+        </span>
+      </div>
+
+      <div class="mt-16 flex flex-col items-center text-slate-300">
+        <div class="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow">
+          <i class="fa-solid fa-tag text-2xl"></i>
+        </div>
+        <p class="mt-4 text-base">No items yet</p>
+      </div>
+
+      <div class="absolute left-1/2 -translate-x-1/2 bottom-4 w-[320px] bg-white rounded-[32px] shadow-lg px-6 py-3 flex justify-between text-slate-400">
+        <div class="flex flex-col items-center">
+          <i class="fa-solid fa-house text-lg"></i>
+          <span class="text-[10px] mt-1">已购</span>
+        </div>
+        <div class="flex flex-col items-center text-[#2B63F1]">
+          <i class="fa-solid fa-heart text-lg"></i>
+          <span class="text-[10px] mt-1">心愿单</span>
+        </div>
+        <div class="flex flex-col items-center">
+          <i class="fa-regular fa-chart-bar text-lg"></i>
+          <span class="text-[10px] mt-1">统计</span>
+        </div>
+        <div class="flex flex-col items-center">
+          <i class="fa-regular fa-user text-lg"></i>
+          <span class="text-[10px] mt-1">我的</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MonoTracker - Profile</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script>
+    tailwind = { config: { theme: { extend: { fontFamily: { display: ['"Manrope"','"Noto Sans SC"','sans-serif'] } } } } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,body { height: 100%; }
+    body { font-family: 'Manrope','Noto Sans SC',sans-serif; }
+    .phone { width: 390px; height: 844px; }
+  </style>
+</head>
+<body class="bg-slate-100">
+  <div class="phone mx-auto bg-[#EEF4FF] rounded-[40px] shadow-2xl overflow-hidden">
+    <div class="h-full px-5 pt-4 pb-6 relative">
+      <div class="flex items-center justify-between text-xs text-slate-500">
+        <span>12:25</span>
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-wifi"></i>
+          <i class="fa-solid fa-signal"></i>
+          <i class="fa-solid fa-battery-three-quarters"></i>
+        </div>
+      </div>
+
+      <div class="mt-6 text-slate-800">
+        <h2 class="text-2xl font-bold">我的</h2>
+      </div>
+
+      <div class="mt-5 bg-white rounded-3xl p-4 shadow-sm">
+        <div class="flex items-center justify-between py-3">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-[#EEF4FF] flex items-center justify-center text-[#2B63F1]">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </div>
+            <span class="font-semibold text-slate-700">AI 设置</span>
+          </div>
+          <i class="fa-solid fa-chevron-right text-slate-300"></i>
+        </div>
+        <div class="h-px bg-slate-100"></div>
+        <div class="flex items-center justify-between py-3">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-[#EEF4FF] flex items-center justify-center text-[#2B63F1]">
+              <i class="fa-solid fa-database"></i>
+            </div>
+            <span class="font-semibold text-slate-700">数据管理</span>
+          </div>
+          <i class="fa-solid fa-chevron-right text-slate-300"></i>
+        </div>
+      </div>
+
+      <div class="mt-5 bg-white rounded-3xl p-5 shadow-sm">
+        <div class="flex items-center gap-2 text-slate-600 font-semibold">
+          <i class="fa-solid fa-palette text-[#2B63F1]"></i>
+          主题颜色
+        </div>
+        <div class="mt-4 flex gap-4">
+          <div class="w-10 h-10 rounded-full bg-[#2B63F1] ring-4 ring-[#DCE6FF]"></div>
+          <div class="w-10 h-10 rounded-full bg-emerald-500"></div>
+          <div class="w-10 h-10 rounded-full bg-purple-500"></div>
+          <div class="w-10 h-10 rounded-full bg-orange-500"></div>
+          <div class="w-10 h-10 rounded-full bg-rose-500"></div>
+        </div>
+
+        <div class="mt-6 flex items-center gap-2 text-slate-600 font-semibold">
+          <i class="fa-regular fa-moon text-[#2B63F1]"></i>
+          外观模式
+        </div>
+        <div class="mt-3 grid grid-cols-3 gap-3 text-sm text-slate-500">
+          <div class="bg-slate-100 rounded-2xl py-3 text-center">浅色</div>
+          <div class="bg-slate-100 rounded-2xl py-3 text-center">深色</div>
+          <div class="bg-[#2B63F1] text-white rounded-2xl py-3 text-center">跟随系统</div>
+        </div>
+
+        <div class="mt-6 flex items-center gap-2 text-slate-600 font-semibold">
+          <i class="fa-solid fa-globe text-[#2B63F1]"></i>
+          语言
+        </div>
+        <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
+          <div class="bg-[#2B63F1] text-white rounded-2xl py-3 text-center">简体中文</div>
+          <div class="bg-slate-100 rounded-2xl py-3 text-center text-slate-600">繁體中文</div>
+          <div class="bg-slate-100 rounded-2xl py-3 text-center text-slate-600">English</div>
+          <div class="bg-slate-100 rounded-2xl py-3 text-center text-slate-600">日本語</div>
+        </div>
+      </div>
+
+      <div class="mt-5 bg-white rounded-3xl p-4 shadow-sm">
+        <div class="flex items-center gap-3 py-3">
+          <div class="w-10 h-10 rounded-2xl bg-[#EEF4FF] flex items-center justify-center text-[#2B63F1]">
+            <i class="fa-solid fa-file-export"></i>
+          </div>
+          <span class="font-semibold text-slate-700">导出数据</span>
+        </div>
+        <div class="h-px bg-slate-100"></div>
+        <div class="flex items-center gap-3 py-3">
+          <div class="w-10 h-10 rounded-2xl bg-[#EEF4FF] flex items-center justify-center text-[#2B63F1]">
+            <i class="fa-solid fa-file-import"></i>
+          </div>
+          <span class="font-semibold text-slate-700">导入数据</span>
+        </div>
+      </div>
+
+      <div class="absolute left-1/2 -translate-x-1/2 bottom-4 w-[320px] bg-white rounded-[32px] shadow-lg px-6 py-3 flex justify-between text-slate-400">
+        <div class="flex flex-col items-center">
+          <i class="fa-solid fa-house text-lg"></i>
+          <span class="text-[10px] mt-1">已购</span>
+        </div>
+        <div class="flex flex-col items-center">
+          <i class="fa-regular fa-heart text-lg"></i>
+          <span class="text-[10px] mt-1">心愿单</span>
+        </div>
+        <div class="flex flex-col items-center">
+          <i class="fa-regular fa-chart-bar text-lg"></i>
+          <span class="text-[10px] mt-1">统计</span>
+        </div>
+        <div class="flex flex-col items-center text-[#2B63F1]">
+          <i class="fa-solid fa-user text-lg"></i>
+          <span class="text-[10px] mt-1">我的</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

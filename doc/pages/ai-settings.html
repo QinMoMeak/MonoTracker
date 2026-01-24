@@ -1,0 +1,75 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MonoTracker - AI Settings</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script>
+    tailwind = { config: { theme: { extend: { fontFamily: { display: ['"Manrope"','"Noto Sans SC"','sans-serif'] } } } } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,body { height: 100%; }
+    body { font-family: 'Manrope','Noto Sans SC',sans-serif; }
+    .phone { width: 390px; height: 844px; }
+  </style>
+</head>
+<body class="bg-slate-100">
+  <div class="phone mx-auto bg-[#EEF4FF] rounded-[40px] shadow-2xl overflow-hidden relative">
+    <div class="h-full px-5 pt-4 pb-6">
+      <div class="flex items-center justify-between text-xs text-slate-400">
+        <span>12:25</span>
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-wifi"></i>
+          <i class="fa-solid fa-signal"></i>
+          <i class="fa-solid fa-battery-three-quarters"></i>
+        </div>
+      </div>
+      <div class="mt-6 text-2xl font-extrabold text-[#1F3B8E]">MonoTracker</div>
+    </div>
+
+    <div class="absolute inset-0 bg-slate-900/20 backdrop-blur-sm"></div>
+
+    <div class="absolute bottom-0 left-0 right-0 bg-white rounded-t-[32px] px-5 py-6 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold text-slate-800">AI 设置</h2>
+        <button class="w-10 h-10 rounded-full bg-slate-100 text-slate-500">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 text-sm text-slate-400">服务商</div>
+      <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
+        <button class="py-3 rounded-2xl bg-slate-100 text-slate-600">禁用 AI</button>
+        <button class="py-3 rounded-2xl bg-slate-100 text-slate-600">OpenAI</button>
+        <button class="py-3 rounded-2xl bg-slate-100 text-slate-600">Google Gemini</button>
+        <button class="py-3 rounded-2xl bg-slate-100 text-slate-600">Anthropic</button>
+        <button class="py-3 rounded-2xl bg-slate-100 text-slate-600">DeepSeek</button>
+        <button class="py-3 rounded-2xl bg-slate-100 text-slate-600">Moonshot</button>
+        <button class="py-3 rounded-2xl bg-slate-100 text-slate-600">Qwen</button>
+        <button class="py-3 rounded-2xl bg-[#2B63F1] text-white">Z.ai</button>
+      </div>
+
+      <div class="mt-5">
+        <div class="text-sm text-slate-400">模型</div>
+        <div class="mt-2 bg-[#F7F8FF] rounded-2xl px-4 py-3 flex items-center justify-between text-[#2B63F1]">
+          glm-4.6v-flash
+          <i class="fa-solid fa-chevron-down text-slate-300"></i>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <div class="text-sm text-slate-400">API KEY</div>
+        <div class="mt-2 bg-[#F7F8FF] rounded-2xl px-4 py-3 text-slate-500">2de7bc7f0a4848879c43afb3d836e54c</div>
+      </div>
+
+      <div class="mt-4">
+        <div class="text-sm text-slate-400">BASE URL</div>
+        <div class="mt-2 bg-[#F7F8FF] rounded-2xl px-4 py-3 text-slate-400">https://open.bigmodel.cn/api/paas/v4/chat/completions</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
