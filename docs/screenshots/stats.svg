@@ -1,0 +1,64 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="2400" viewBox="0 0 1080 2400">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F0F9FF" />
+      <stop offset="100%" stop-color="#F8FAFC" />
+    </linearGradient>
+  </defs>
+  <rect width="1080" height="2400" fill="url(#bg)" />
+
+  <text x="96" y="140" font-family="Arial, sans-serif" font-size="64" font-weight="700" fill="#0F172A">Statistics</text>
+  <text x="96" y="200" font-family="Arial, sans-serif" font-size="28" fill="#64748B">Insights & Trends</text>
+
+  <!-- Overview cards -->
+  <rect x="96" y="260" width="420" height="180" rx="32" fill="#FFFFFF" stroke="#E2E8F0" />
+  <rect x="564" y="260" width="420" height="180" rx="32" fill="#FFFFFF" stroke="#E2E8F0" />
+  <text x="136" y="320" font-family="Arial, sans-serif" font-size="20" fill="#94A3B8">TOTAL VALUE</text>
+  <text x="136" y="380" font-family="Arial, sans-serif" font-size="48" font-weight="700" fill="#0EA5E9">$12,480</text>
+  <text x="604" y="320" font-family="Arial, sans-serif" font-size="20" fill="#94A3B8">ITEMS</text>
+  <text x="604" y="380" font-family="Arial, sans-serif" font-size="48" font-weight="700" fill="#0F172A">86</text>
+
+  <!-- Trend chart -->
+  <rect x="96" y="480" width="888" height="420" rx="36" fill="#FFFFFF" stroke="#E2E8F0" />
+  <text x="136" y="540" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#1E293B">Monthly Trend</text>
+  <polyline points="160,800 280,720 400,760 520,620 640,690 760,600 880,660" fill="none" stroke="#38BDF8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="160" cy="800" r="8" fill="#38BDF8" />
+  <circle cx="280" cy="720" r="8" fill="#38BDF8" />
+  <circle cx="400" cy="760" r="8" fill="#38BDF8" />
+  <circle cx="520" cy="620" r="8" fill="#38BDF8" />
+  <circle cx="640" cy="690" r="8" fill="#38BDF8" />
+  <circle cx="760" cy="600" r="8" fill="#38BDF8" />
+  <circle cx="880" cy="660" r="8" fill="#38BDF8" />
+
+  <!-- Channel distribution -->
+  <rect x="96" y="940" width="888" height="520" rx="36" fill="#FFFFFF" stroke="#E2E8F0" />
+  <text x="136" y="1000" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#1E293B">Channel Distribution</text>
+  <rect x="160" y="1060" width="760" height="64" rx="16" fill="#E2E8F0" />
+  <rect x="160" y="1060" width="420" height="64" rx="16" fill="#38BDF8" />
+  <rect x="160" y="1150" width="760" height="64" rx="16" fill="#E2E8F0" />
+  <rect x="160" y="1150" width="300" height="64" rx="16" fill="#60A5FA" />
+  <rect x="160" y="1240" width="760" height="64" rx="16" fill="#E2E8F0" />
+  <rect x="160" y="1240" width="180" height="64" rx="16" fill="#A5B4FC" />
+
+  <!-- Category Top N -->
+  <rect x="96" y="1500" width="888" height="640" rx="36" fill="#FFFFFF" stroke="#E2E8F0" />
+  <text x="136" y="1560" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#1E293B">Category Top N</text>
+  <g transform="translate(136,1610)">
+    <rect width="808" height="110" rx="24" fill="#F8FAFC" stroke="#E2E8F0" />
+    <text x="24" y="70" font-family="Arial, sans-serif" font-size="22" fill="#0F172A">Digital</text>
+    <rect x="500" y="40" width="280" height="30" rx="12" fill="#E2E8F0" />
+    <rect x="500" y="40" width="210" height="30" rx="12" fill="#38BDF8" />
+  </g>
+  <g transform="translate(136,1740)">
+    <rect width="808" height="110" rx="24" fill="#F8FAFC" stroke="#E2E8F0" />
+    <text x="24" y="70" font-family="Arial, sans-serif" font-size="22" fill="#0F172A">Home</text>
+    <rect x="500" y="40" width="280" height="30" rx="12" fill="#E2E8F0" />
+    <rect x="500" y="40" width="160" height="30" rx="12" fill="#60A5FA" />
+  </g>
+  <g transform="translate(136,1870)">
+    <rect width="808" height="110" rx="24" fill="#F8FAFC" stroke="#E2E8F0" />
+    <text x="24" y="70" font-family="Arial, sans-serif" font-size="22" fill="#0F172A">Fashion</text>
+    <rect x="500" y="40" width="280" height="30" rx="12" fill="#E2E8F0" />
+    <rect x="500" y="40" width="120" height="30" rx="12" fill="#A5B4FC" />
+  </g>
+</svg>
