@@ -1,0 +1,79 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MonoTracker Prototype</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind = { config: { theme: { extend: { fontFamily: { display: ['"Manrope"','"Noto Sans SC"','sans-serif'] } } } } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Manrope','Noto Sans SC',sans-serif; }
+    iframe { border: 0; width: 390px; height: 844px; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900">
+  <div class="max-w-[1400px] mx-auto px-6 py-10">
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-3xl font-extrabold">MonoTracker 高保真原型</h1>
+        <p class="text-slate-500 mt-1">以下为关键界面平铺展示（iframe），用于交互与视觉评审。</p>
+      </div>
+      <span class="px-3 py-1 rounded-full bg-blue-600 text-white text-sm font-semibold">v1.2.0</span>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+      <div class="space-y-3">
+        <h2 class="text-lg font-bold">首页 / 已购</h2>
+        <div class="rounded-[28px] shadow-xl bg-white p-3">
+          <iframe src="pages/home.html"></iframe>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <h2 class="text-lg font-bold">心愿单 / 高级筛选</h2>
+        <div class="rounded-[28px] shadow-xl bg-white p-3">
+          <iframe src="pages/wishlist.html"></iframe>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <h2 class="text-lg font-bold">统计面板</h2>
+        <div class="rounded-[28px] shadow-xl bg-white p-3">
+          <iframe src="pages/stats.html"></iframe>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <h2 class="text-lg font-bold">我的 / 设置</h2>
+        <div class="rounded-[28px] shadow-xl bg-white p-3">
+          <iframe src="pages/profile.html"></iframe>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <h2 class="text-lg font-bold">新增/编辑物品</h2>
+        <div class="rounded-[28px] shadow-xl bg-white p-3">
+          <iframe src="pages/add-item.html"></iframe>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <h2 class="text-lg font-bold">AI 快速添加</h2>
+        <div class="rounded-[28px] shadow-xl bg-white p-3">
+          <iframe src="pages/ai-quick-add.html"></iframe>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <h2 class="text-lg font-bold">AI 设置（弹窗）</h2>
+        <div class="rounded-[28px] shadow-xl bg-white p-3">
+          <iframe src="pages/ai-settings.html"></iframe>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <h2 class="text-lg font-bold">数据管理（弹窗）</h2>
+        <div class="rounded-[28px] shadow-xl bg-white p-3">
+          <iframe src="pages/data-manage.html"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

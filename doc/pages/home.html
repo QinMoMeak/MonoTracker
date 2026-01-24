@@ -1,0 +1,172 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MonoTracker - Home</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script>
+    tailwind = { config: { theme: { extend: { fontFamily: { display: ['"Manrope"','"Noto Sans SC"','sans-serif'] } } } } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,body { height: 100%; }
+    body { font-family: 'Manrope','Noto Sans SC',sans-serif; }
+    .phone { width: 390px; height: 844px; }
+  </style>
+</head>
+<body class="bg-slate-100">
+  <div class="phone mx-auto bg-[#EEF4FF] rounded-[40px] shadow-2xl overflow-hidden">
+    <div class="h-full px-5 pt-4 pb-6 relative">
+      <!-- Status bar -->
+      <div class="flex items-center justify-between text-xs text-slate-500">
+        <span>12:25</span>
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-wifi"></i>
+          <i class="fa-solid fa-signal"></i>
+          <i class="fa-solid fa-battery-three-quarters"></i>
+        </div>
+      </div>
+
+      <div class="mt-5">
+        <h1 class="text-3xl font-extrabold text-[#1F3B8E]">MonoTracker</h1>
+        <div class="flex items-end gap-3 mt-2">
+          <span class="text-3xl font-semibold text-[#2B63F1]">¥849.07</span>
+          <span class="text-sm text-slate-500">总价值</span>
+        </div>
+      </div>
+
+      <!-- Search + filter -->
+      <div class="mt-5 flex gap-3">
+        <div class="flex-1 bg-white rounded-2xl px-4 py-3 flex items-center gap-2 shadow-sm">
+          <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+          <span class="text-slate-400 text-sm">搜索名称/备注/渠道...</span>
+        </div>
+        <div class="w-24 bg-white rounded-2xl px-3 py-3 flex items-center justify-center gap-2 shadow-sm text-slate-600 text-sm">
+          <i class="fa-solid fa-sliders"></i>
+          筛选
+        </div>
+      </div>
+
+      <!-- Filter chips -->
+      <div class="mt-4 flex gap-3 text-sm">
+        <span class="px-4 py-2 rounded-full bg-[#2B63F1] text-white font-semibold">全部</span>
+        <span class="px-4 py-2 rounded-full bg-white text-slate-500">全新</span>
+        <span class="px-4 py-2 rounded-full bg-white text-slate-500">二手</span>
+        <span class="px-4 py-2 rounded-full bg-white text-slate-500">损坏</span>
+        <span class="px-4 py-2 rounded-full bg-white text-slate-500">已售</span>
+      </div>
+
+      <!-- Month group -->
+      <div class="mt-5 flex items-center gap-2 text-slate-500">
+        <span class="w-2 h-2 bg-[#2B63F1] rounded-full"></span>
+        <span class="font-semibold">2026年1月</span>
+      </div>
+
+      <!-- Item card 1 -->
+      <div class="mt-3 bg-white rounded-3xl p-4 shadow-sm">
+        <div class="flex gap-4">
+          <div class="w-20 h-20 rounded-2xl bg-[#FFE6C7] flex items-center justify-center">
+            <i class="fa-solid fa-toolbox text-[#F97316] text-2xl"></i>
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <h3 class="font-bold text-slate-800">伸缩梯</h3>
+              <i class="fa-regular fa-pen-to-square text-slate-300"></i>
+            </div>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-lg font-semibold text-[#2B63F1]">¥148.36</span>
+              <span class="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-500">拼多多</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-400 mt-2">
+              <i class="fa-regular fa-calendar"></i>
+              <span>2026-01-23</span>
+            </div>
+          </div>
+        </div>
+        <div class="mt-3 flex items-center justify-between text-xs text-slate-400">
+          <div class="flex gap-6">
+            <div>
+              <div>日均价值</div>
+              <div class="text-slate-500">¥148.4</div>
+            </div>
+            <div>
+              <div>次均价值</div>
+              <div class="text-slate-500">¥148.4</div>
+            </div>
+          </div>
+          <button class="px-3 py-2 rounded-full bg-[#2B63F1] text-white font-semibold">+1次</button>
+        </div>
+      </div>
+
+      <!-- Item card 2 -->
+      <div class="mt-4 bg-white rounded-3xl p-4 shadow-sm">
+        <div class="flex gap-4">
+          <div class="w-20 h-20 rounded-2xl bg-[#E0E7FF] flex items-center justify-center">
+            <i class="fa-regular fa-clock text-[#4F46E5] text-2xl"></i>
+          </div>
+          <div class="flex-1">
+            <div class="flex items-center justify-between">
+              <h3 class="font-bold text-slate-800">华米 Active2</h3>
+              <i class="fa-regular fa-pen-to-square text-slate-300"></i>
+            </div>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="text-lg font-semibold text-[#2B63F1]">¥700.71</span>
+              <span class="text-xs line-through text-slate-300">¥949</span>
+              <span class="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-500">京东</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-slate-400 mt-2">
+              <i class="fa-regular fa-calendar"></i>
+              <span>2025-05-29</span>
+            </div>
+          </div>
+        </div>
+        <div class="mt-3 flex items-center justify-between text-xs text-slate-400">
+          <div class="flex gap-6">
+            <div>
+              <div>日均价值</div>
+              <div class="text-slate-500">¥2.9</div>
+            </div>
+            <div>
+              <div>次均价值</div>
+              <div class="text-slate-500">¥700.7</div>
+            </div>
+          </div>
+          <button class="px-3 py-2 rounded-full bg-[#2B63F1] text-white font-semibold">+1次</button>
+        </div>
+      </div>
+
+      <!-- Floating actions -->
+      <div class="absolute right-5 bottom-28 flex flex-col gap-3">
+        <button class="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-slate-600">
+          <i class="fa-solid fa-pen"></i>
+        </button>
+        <button class="w-14 h-14 bg-[#2B63F1] rounded-full shadow-xl flex items-center justify-center text-white">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+        </button>
+      </div>
+
+      <!-- Bottom nav -->
+      <div class="absolute left-1/2 -translate-x-1/2 bottom-4 w-[320px] bg-white rounded-[32px] shadow-lg px-6 py-3 flex justify-between text-slate-400">
+        <div class="flex flex-col items-center text-[#2B63F1]">
+          <i class="fa-solid fa-house text-lg"></i>
+          <span class="text-[10px] mt-1">已购</span>
+        </div>
+        <div class="flex flex-col items-center">
+          <i class="fa-regular fa-heart text-lg"></i>
+          <span class="text-[10px] mt-1">心愿单</span>
+        </div>
+        <div class="flex flex-col items-center">
+          <i class="fa-regular fa-chart-bar text-lg"></i>
+          <span class="text-[10px] mt-1">统计</span>
+        </div>
+        <div class="flex flex-col items-center">
+          <i class="fa-regular fa-user text-lg"></i>
+          <span class="text-[10px] mt-1">我的</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

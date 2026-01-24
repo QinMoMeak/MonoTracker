@@ -39,3 +39,9 @@ MonoTracker 是一款本地优先的物品购买与资产追踪应用，支持 A
 ![添加/编辑](docs/screenshots/add-item.svg)
 
 ![统计](docs/screenshots/stats.svg)
+
+## 高保真原型
+- 原型总览：`doc/index.html`
+- 用户体验分析：`doc/ux-analysis.md`
+- 产品界面规划：`doc/ia.md`
+

@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MonoTracker - Add Item</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script>
+    tailwind = { config: { theme: { extend: { fontFamily: { display: ['"Manrope"','"Noto Sans SC"','sans-serif'] } } } } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,body { height: 100%; }
+    body { font-family: 'Manrope','Noto Sans SC',sans-serif; }
+    .phone { width: 390px; height: 844px; }
+  </style>
+</head>
+<body class="bg-slate-100">
+  <div class="phone mx-auto bg-[#F7F9FF] rounded-[40px] shadow-2xl overflow-hidden">
+    <div class="h-full px-5 pt-4 pb-6">
+      <div class="flex items-center justify-between text-xs text-slate-400">
+        <span>12:25</span>
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-wifi"></i>
+          <i class="fa-solid fa-signal"></i>
+          <i class="fa-solid fa-battery-three-quarters"></i>
+        </div>
+      </div>
+
+      <div class="mt-4 text-slate-700 font-semibold">添加物品</div>
+
+      <div class="mt-4 bg-white rounded-3xl p-5 shadow-sm">
+        <div class="text-xs text-slate-400">名称</div>
+        <div class="mt-2 bg-[#F5F7FF] rounded-2xl px-4 py-3 text-slate-400">Item Name</div>
+
+        <div class="mt-5 grid grid-cols-2 gap-4">
+          <div>
+            <div class="text-xs text-slate-400">价格</div>
+            <div class="mt-2 bg-[#F5F7FF] rounded-2xl px-4 py-3 text-[#2B63F1]">￥ 0</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-400">原价</div>
+            <div class="mt-2 bg-[#F5F7FF] rounded-2xl px-4 py-3 text-[#2B63F1]">￥ 0</div>
+          </div>
+        </div>
+
+        <div class="mt-5">
+          <div class="text-xs text-slate-400">日期</div>
+          <div class="mt-2 bg-[#F5F7FF] rounded-2xl px-4 py-3 flex items-center justify-between text-[#2B63F1]">
+            <div class="flex items-center gap-2">
+              <i class="fa-regular fa-calendar"></i>
+              2026/01/24
+            </div>
+            <i class="fa-solid fa-chevron-down text-slate-300"></i>
+          </div>
+        </div>
+
+        <div class="mt-6">
+          <div class="text-xs text-slate-400 mb-3">分类</div>
+          <div class="grid grid-cols-4 gap-3 text-xs text-slate-500">
+            <div class="bg-[#F7F8FF] rounded-2xl p-3 flex flex-col items-center gap-2">
+              <i class="fa-solid fa-mobile-screen-button text-lg"></i>
+              数码
+            </div>
+            <div class="bg-[#F7F8FF] rounded-2xl p-3 flex flex-col items-center gap-2">
+              <i class="fa-solid fa-shirt text-lg"></i>
+              服饰
+            </div>
+            <div class="bg-[#F7F8FF] rounded-2xl p-3 flex flex-col items-center gap-2">
+              <i class="fa-solid fa-couch text-lg"></i>
+              家居
+            </div>
+            <div class="bg-[#F7F8FF] rounded-2xl p-3 flex flex-col items-center gap-2">
+              <i class="fa-solid fa-sparkles text-lg"></i>
+              美妆
+            </div>
+            <div class="bg-[#F7F8FF] rounded-2xl p-3 flex flex-col items-center gap-2">
+              <i class="fa-solid fa-book text-lg"></i>
+              书籍
+            </div>
+            <div class="bg-[#F7F8FF] rounded-2xl p-3 flex flex-col items-center gap-2">
+              <i class="fa-solid fa-person-running text-lg"></i>
+              运动
+            </div>
+            <div class="bg-[#F7F8FF] rounded-2xl p-3 flex flex-col items-center gap-2">
+              <i class="fa-solid fa-heart-pulse text-lg"></i>
+              健康
+            </div>
+            <div class="bg-[#2B63F1] text-white rounded-2xl p-3 flex flex-col items-center gap-2">
+              <i class="fa-solid fa-cube text-lg"></i>
+              其他
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6">
+          <div class="text-xs text-slate-400 mb-3">状态</div>
+          <div class="flex flex-wrap gap-3 text-sm">
+            <span class="px-4 py-2 rounded-full bg-[#2B63F1] text-white">全新</span>
+            <span class="px-4 py-2 rounded-full bg-[#F5F7FF] text-slate-500">二手</span>
+            <span class="px-4 py-2 rounded-full bg-[#F5F7FF] text-slate-500">损坏</span>
+            <span class="px-4 py-2 rounded-full bg-[#F5F7FF] text-slate-500">已售</span>
+            <span class="px-4 py-2 rounded-full bg-[#F5F7FF] text-slate-500">用罄</span>
+          </div>
+        </div>
+
+        <div class="mt-6">
+          <div class="text-xs text-slate-400 mb-3">购买渠道</div>
+          <div class="flex flex-wrap gap-3 text-sm">
+            <span class="px-4 py-2 rounded-full bg-[#F5F7FF] text-slate-500">京东</span>
+            <span class="px-4 py-2 rounded-full bg-[#F5F7FF] text-slate-500">淘宝</span>
+            <span class="px-4 py-2 rounded-full bg-[#F5F7FF] text-slate-500">拼多多</span>
+            <span class="px-4 py-2 rounded-full bg-[#F5F7FF] text-slate-500">闲鱼</span>
+            <span class="px-4 py-2 rounded-full bg-[#F5F7FF] text-slate-500">抖音</span>
+          </div>
+        </div>
+
+        <div class="mt-6">
+          <div class="text-xs text-slate-400">链接</div>
+          <div class="mt-2 bg-[#F5F7FF] rounded-2xl px-4 py-3 flex items-center gap-2 text-slate-400">
+            <i class="fa-solid fa-link"></i>
+            https://...
+          </div>
+        </div>
+
+        <div class="mt-6">
+          <div class="text-xs text-slate-400">备注</div>
+          <div class="mt-2 bg-[#F5F7FF] rounded-2xl px-4 py-6 text-slate-300">填写备注</div>
+        </div>
+
+        <button class="mt-6 w-full bg-[#2B63F1] text-white font-semibold py-4 rounded-3xl shadow-lg">保存</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
