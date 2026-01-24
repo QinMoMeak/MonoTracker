@@ -32,16 +32,28 @@ MonoTracker 是一款本地优先的物品购买与资产追踪应用，支持 A
 3. 生成 APK：`cd android && .\gradlew assembleDebug`
 
 ## App 效果图
-> 将真实截图替换 `docs/screenshots/*.svg`。
+> 以下为原型页面导出的 SVG 预览。
 
-![首页](docs/screenshots/home.svg)
+![已购首页](doc/pages/home.svg)
 
-![添加/编辑](docs/screenshots/add-item.svg)
+![心愿单/筛选](doc/pages/wishlist.svg)
 
-![统计](docs/screenshots/stats.svg)
+![统计面板](doc/pages/stats.svg)
+
+![我的/设置](doc/pages/profile.svg)
+
+![新增/编辑](doc/pages/add-item.svg)
+
+![AI 快速添加](doc/pages/ai-quick-add.svg)
+
+![AI 设置](doc/pages/ai-settings.svg)
+
+![数据管理](doc/pages/data-manage.svg)
 
 ## 高保真原型
 - 原型总览：`doc/index.html`
 - 用户体验分析：`doc/ux-analysis.md`
 - 产品界面规划：`doc/ia.md`
+
+
 
