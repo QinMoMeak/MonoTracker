@@ -1,0 +1,56 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="2400" viewBox="0 0 1080 2400">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F8FAFC" />
+      <stop offset="100%" stop-color="#EEF2FF" />
+    </linearGradient>
+  </defs>
+  <rect width="1080" height="2400" fill="url(#bg)" />
+
+  <rect x="120" y="180" width="840" height="2040" rx="48" fill="#FFFFFF" stroke="#E2E8F0" />
+  <text x="180" y="280" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#0F172A">Add Item</text>
+
+  <!-- Image block -->
+  <rect x="180" y="340" width="720" height="240" rx="32" fill="#F1F5F9" stroke="#E2E8F0" />
+  <circle cx="540" cy="460" r="48" fill="#CBD5E1" />
+  <text x="540" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#94A3B8">Add Image</text>
+
+  <!-- Fields -->
+  <text x="180" y="660" font-family="Arial, sans-serif" font-size="20" fill="#94A3B8">NAME</text>
+  <rect x="180" y="690" width="720" height="110" rx="24" fill="#F8FAFC" stroke="#E2E8F0" />
+  <text x="210" y="760" font-family="Arial, sans-serif" font-size="26" fill="#64748B">Wireless Earbuds</text>
+
+  <text x="180" y="860" font-family="Arial, sans-serif" font-size="20" fill="#94A3B8">PRICE / MSRP</text>
+  <rect x="180" y="890" width="340" height="110" rx="24" fill="#F8FAFC" stroke="#E2E8F0" />
+  <rect x="560" y="890" width="340" height="110" rx="24" fill="#F8FAFC" stroke="#E2E8F0" />
+  <text x="210" y="960" font-family="Arial, sans-serif" font-size="26" fill="#64748B">$79</text>
+  <text x="590" y="960" font-family="Arial, sans-serif" font-size="26" fill="#94A3B8">$99</text>
+
+  <!-- Category chips -->
+  <text x="180" y="1080" font-family="Arial, sans-serif" font-size="20" fill="#94A3B8">CATEGORY</text>
+  <g transform="translate(180,1120)">
+    <rect width="160" height="100" rx="24" fill="#DBEAFE" stroke="#BFDBFE" />
+    <text x="80" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#1D4ED8">Digital</text>
+    <rect x="180" width="160" height="100" rx="24" fill="#F1F5F9" stroke="#E2E8F0" />
+    <text x="260" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#64748B">Home</text>
+    <rect x="360" width="160" height="100" rx="24" fill="#F1F5F9" stroke="#E2E8F0" />
+    <text x="440" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#64748B">Fashion</text>
+    <rect x="540" width="160" height="100" rx="24" fill="#F1F5F9" stroke="#E2E8F0" />
+    <text x="620" y="62" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#64748B">Other</text>
+  </g>
+
+  <!-- Status chips -->
+  <text x="180" y="1290" font-family="Arial, sans-serif" font-size="20" fill="#94A3B8">STATUS</text>
+  <g transform="translate(180,1330)">
+    <rect width="160" height="90" rx="24" fill="#F1F5F9" stroke="#E2E8F0" />
+    <text x="80" y="56" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#64748B">New</text>
+    <rect x="180" width="160" height="90" rx="24" fill="#DBEAFE" stroke="#BFDBFE" />
+    <text x="260" y="56" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#1D4ED8">Used</text>
+    <rect x="360" width="160" height="90" rx="24" fill="#F1F5F9" stroke="#E2E8F0" />
+    <text x="440" y="56" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#64748B">Broken</text>
+  </g>
+
+  <!-- Save button -->
+  <rect x="180" y="1920" width="720" height="140" rx="70" fill="#3B82F6" />
+  <text x="540" y="2005" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" font-weight="700" fill="#FFFFFF">Save</text>
+</svg>
