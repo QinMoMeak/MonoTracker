@@ -6,7 +6,7 @@
 6    <uses-sdk android:minSdkVersion="24" />
 7
 8    <application>
-8-->E:\Android\Project_\MonoTracker-main\android\capacitor-cordova-android-plugins\src\main\AndroidManifest.xml:4:1-6:15
+8-->E:\Android\Project_\MonoTracker\android\capacitor-cordova-android-plugins\src\main\AndroidManifest.xml:4:1-6:15
 9    </application>
 10
 11</manifest>

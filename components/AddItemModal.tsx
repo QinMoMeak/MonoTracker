@@ -40,7 +40,7 @@ const AddItemModal: React.FC<Props> = ({
 
   // Manual Form State
   const [formData, setFormData] = useState<Partial<Item>>({
-    name: '', price: 0, msrp: 0, note: '', link: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], priceHistory: []
+    name: '', price: 0, msrp: 0, note: '', link: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], priceHistory: [], valueDisplay: 'both'
   });
 
   // Reset or Populate form when modal opens
@@ -48,7 +48,7 @@ const AddItemModal: React.FC<Props> = ({
     if (isOpen) {
       if (initialItem) {
         setMode('manual');
-        setFormData({ ...initialItem, channel: normalizeChannelValue(initialItem.channel) });
+        setFormData({ ...initialItem, channel: normalizeChannelValue(initialItem.channel), valueDisplay: initialItem.valueDisplay || 'both' });
         setImage(initialItem.image);
         setImages(initialItem.image ? [initialItem.image] : []);
         setDesc('');
@@ -58,7 +58,7 @@ const AddItemModal: React.FC<Props> = ({
         // Use the passed initialMode (ai or manual)
         setMode(aiEnabled ? initialMode : 'manual');
         setFormData({ 
-          name: '', price: 0, msrp: 0, note: '', link: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], priceHistory: [] 
+          name: '', price: 0, msrp: 0, note: '', link: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], priceHistory: [], valueDisplay: 'both' 
         });
         setImage(undefined);
         setImages([]);
@@ -176,6 +176,7 @@ const AddItemModal: React.FC<Props> = ({
       const msrp = typeof result.msrp === 'number' ? result.msrp : parseFloat(String(result.msrp || '')) || 0;
       setFormData(prev => {
         const nextChannel = normalizeChannelValue(result.channel || prev.channel);
+        const resolvedType = activeTab === 'wishlist' ? 'wishlist' : (result.type || prev.type || activeTab);
         return ({
           ...prev,
           ...result,
@@ -185,8 +186,8 @@ const AddItemModal: React.FC<Props> = ({
           status: result.status || prev.status,
           category: result.category || prev.category,
           channel: nextChannel,
-          image: image || result.image, 
-          type: result.type || activeTab // Default to current tab, can be changed in manual review
+          image: image || result.image,
+          type: resolvedType
         });
       });
       setMode('manual'); 
@@ -285,7 +286,7 @@ const AddItemModal: React.FC<Props> = ({
             >
               {images.length > 0 ? (
                 <div className="relative">
-                  <img src={images[0]} alt="Preview" className="h-40 object-contain rounded-xl" />
+                  <img src={images[0]} alt={TEXTS.imagePreviewAlt[language]} className="h-40 object-contain rounded-xl" />
                   {images.length > 1 && (
                     <span className="absolute -top-2 -right-2 text-[10px] font-bold bg-gray-800 text-white rounded-full px-2 py-0.5 shadow">
                       +{images.length - 1}
@@ -338,7 +339,7 @@ const AddItemModal: React.FC<Props> = ({
             }}>
                 {image ? (
                   <div className="relative">
-                    <img src={image} className="h-32 rounded-xl object-cover shadow-sm" />
+                    <img src={image} alt={TEXTS.imagePreviewAlt[language]} className="h-32 rounded-xl object-cover shadow-sm" />
                     {images.length > 1 && (
                       <span className="absolute -top-2 -right-2 text-[10px] font-bold bg-gray-800 text-white rounded-full px-2 py-0.5 shadow">
                         +{images.length - 1}
@@ -349,7 +350,7 @@ const AddItemModal: React.FC<Props> = ({
                    <div className="h-32 w-full bg-gray-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-gray-400 dark:text-slate-500 border border-gray-200 dark:border-slate-700 border-dashed">
                       <div className="flex flex-col items-center gap-2">
                         <Camera size={24} />
-                        <span className="text-xs">Add Image</span>
+                        <span className="text-xs">{TEXTS.addImage[language]}</span>
                       </div>
                    </div>
                 )}
@@ -363,8 +364,37 @@ const AddItemModal: React.FC<Props> = ({
                 value={formData.name}
                 onChange={e => setFormData({...formData, name: e.target.value})}
                 className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border-none shadow-sm focus:ring-2 dark:placeholder-slate-500"
-                placeholder="Item Name"
+                placeholder={TEXTS.itemNamePlaceholder[language]}
               />
+            </div>
+
+            {/* Item Type */}
+            <div>
+              <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.itemType[language]}</label>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, type: 'owned' })}
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
+                    formData.type === 'owned'
+                    ? `${themeColors.primary} text-white border-transparent shadow-md`
+                    : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {TEXTS.tabOwned[language]}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, type: 'wishlist' })}
+                  className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
+                    formData.type === 'wishlist'
+                    ? `${themeColors.primary} text-white border-transparent shadow-md`
+                    : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {TEXTS.tabWishlist[language]}
+                </button>
+              </div>
             </div>
 
             {/* Price & MSRP */}
@@ -537,6 +567,37 @@ const AddItemModal: React.FC<Props> = ({
                  </div>
             </div>
 
+            {/* Value Display (Owned Only) */}
+            {formData.type === 'owned' && (
+              <div>
+                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.valueDisplay[language]}</label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {(['day', 'use', 'both'] as const).map(option => {
+                    const label = option === 'day'
+                      ? TEXTS.valPerDay[language]
+                      : option === 'use'
+                        ? TEXTS.valPerUse[language]
+                        : TEXTS.valueDisplayBoth[language];
+                    const selected = (formData.valueDisplay || 'both') === option;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, valueDisplay: option })}
+                        className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap border ${
+                          selected
+                          ? `${themeColors.primary} text-white border-transparent shadow-md`
+                          : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Channel Selection */}
             <div>
                  <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.channel[language]}</label>
@@ -578,7 +639,7 @@ const AddItemModal: React.FC<Props> = ({
                     value={formData.link}
                     onChange={e => setFormData({...formData, link: e.target.value})}
                     className="w-full p-4 pl-10 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border-none shadow-sm placeholder-gray-400 dark:placeholder-slate-500"
-                    placeholder="https://..."
+                    placeholder={TEXTS.linkPlaceholder[language]}
                 />
               </div>
             </div>

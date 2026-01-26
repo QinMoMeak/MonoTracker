@@ -1,7 +1,7 @@
 {
-  "name": "monotracker",
+  "name": "tracker",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,7 +13,9 @@
     "@capacitor/app": "8.0.0",
     "@capacitor/filesystem": "^8.0.0",
     "@capacitor/share": "^8.0.0",
+    "@capacitor/splash-screen": "^8.0.0",
     "@google/genai": "^1.35.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"

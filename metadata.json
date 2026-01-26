@@ -1,5 +1,5 @@
 {
-  "name": "MonoTracker",
+  "name": "Tracker",
   "description": "A local-first, Android 16 style item tracker with AI capabilities.",
   "requestFramePermissions": [
     "camera",
