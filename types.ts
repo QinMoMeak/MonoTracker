@@ -48,6 +48,7 @@ export interface Item {
   usageCount: number; // For manual usage tracking
   discountRate?: number; // Calculated or manual
   priceHistory?: PricePoint[]; // Wishlist price snapshots
+  valueDisplay?: 'day' | 'use' | 'both'; // Control which value metrics to show
 }
 
 export interface Translations {

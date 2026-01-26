@@ -3,9 +3,11 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { SplashScreen } from '@capacitor/splash-screen';
 import { AiConfig, AiCredentials, AiProvider, AiRuntimeConfig, Item, Language, ThemeColor, Tab, AppearanceMode } from './types';
 import { THEMES, TEXTS, ICONS, INITIAL_ITEMS, CATEGORY_CONFIG, DEFAULT_CHANNELS, DEFAULT_STATUSES } from './constants';
-import { loadState, saveState, importCSV, exportCSV } from './services/storageService';
+import { loadState, saveState, exportCSV } from './services/storageService';
+import { buildExportZip, importBackupFile } from './services/backupService';
 import { AI_PROVIDERS, getModelMeta, getProviderMeta, getProviderModels } from './services/aiProviders';
 import Timeline from './components/Timeline';
 import AddItemModal from './components/AddItemModal';
@@ -34,6 +36,7 @@ const App: React.FC = () => {
   const [aiConfig, setAiConfig] = useState<AiConfig>({ provider: 'disabled', model: '', credentials: {} });
   const [showAiSettingsModal, setShowAiSettingsModal] = useState(false);
   const [showDataManageModal, setShowDataManageModal] = useState(false);
+  const [previewImage, setPreviewImage] = useState<{ src: string; name?: string } | null>(null);
   
   // Export Modal State
   const [showExportModal, setShowExportModal] = useState(false);
@@ -186,6 +189,11 @@ const App: React.FC = () => {
     setIsLoaded(true);
   }, []);
 
+  useEffect(() => {
+    if (!isLoaded) return;
+    SplashScreen.hide().catch(() => {});
+  }, [isLoaded]);
+
   // --- Persistence ---
   useEffect(() => {
     // Prevent saving if we haven't loaded yet to avoid overwriting with initial empty state
@@ -211,10 +219,28 @@ const App: React.FC = () => {
     setShowDataManageModal(false);
   };
 
+  const openImagePreview = useCallback((src: string, name?: string) => {
+    if (!src) return;
+    setPreviewImage({ src, name });
+    window.history.pushState(null, '', '');
+  }, []);
+
+  const closeImagePreview = () => {
+    setPreviewImage(null);
+  };
+
+  const handleCloseImagePreview = () => {
+    window.history.back();
+  };
+
   // --- History Handling (Back Gesture) ---
   useEffect(() => {
     const handlePopState = () => {
       // If modal is open and user presses back, close it
+      if (previewImage) {
+        closeImagePreview();
+        return;
+      }
       if (isAddModalOpen) {
         closeAddModal();
       }
@@ -229,20 +255,24 @@ const App: React.FC = () => {
       }
     };
 
-    if (isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal) {
+    if (previewImage || isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal) {
       window.addEventListener('popstate', handlePopState);
     }
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal]);
+  }, [previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal]);
 
   useEffect(() => {
     let backHandle: { remove: () => void } | undefined;
     const handler = ({ canGoBack }: { canGoBack: boolean }) => {
       if (dialog) {
         setDialog(null);
+        return;
+      }
+      if (previewImage) {
+        window.history.back();
         return;
       }
       if (isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal) {
@@ -261,13 +291,18 @@ const App: React.FC = () => {
     return () => {
       backHandle?.remove();
     };
-  }, [dialog, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal]);
+  }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal]);
 
   useEffect(() => {
     const handleBackButton = (event: Event) => {
       if (dialog) {
         event.preventDefault();
         setDialog(null);
+        return;
+      }
+      if (previewImage) {
+        event.preventDefault();
+        window.history.back();
         return;
       }
       if (isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal) {
@@ -280,7 +315,7 @@ const App: React.FC = () => {
     return () => {
       document.removeEventListener('backbutton', handleBackButton);
     };
-  }, [dialog, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal]);
+  }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal]);
 
   // Reset filter on tab change
   useEffect(() => {
@@ -413,7 +448,7 @@ const App: React.FC = () => {
         const newItem: Item = {
             id: Date.now().toString(),
             type: (itemData.type as any) || (activeTab === 'wishlist' ? 'wishlist' : 'owned'),
-            name: itemData.name || 'Unknown Item',
+            name: itemData.name || TEXTS.unknownItem[language],
             price: itemData.price || 0,
             msrp: itemData.msrp || itemData.price || 0,
             purchaseDate: itemData.purchaseDate || new Date().toISOString().split('T')[0],
@@ -426,7 +461,8 @@ const App: React.FC = () => {
             usageCount: itemData.usageCount || 0,
             discountRate: itemData.discountRate,
             channel: itemData.channel,
-            priceHistory: itemData.priceHistory || []
+            priceHistory: itemData.priceHistory || [],
+            valueDisplay: itemData.valueDisplay || 'both'
         };
         setItems(prev => [newItem, ...prev]);
     }
@@ -488,13 +524,12 @@ const App: React.FC = () => {
   }, []);
 
   const handleClearFilters = () => {
-      setActiveFilter('all');
-      setSearchQuery('');
-      setFilterDateStart('');
-      setFilterDateEnd('');
-      setFilterPriceMin('');
-      setFilterPriceMax('');
+    setFilterDateStart('');
+    setFilterDateEnd('');
+    setFilterPriceMin('');
+    setFilterPriceMax('');
   };
+
 
   // Managed Data Handlers
   const handleAddCategory = async () => {
@@ -637,9 +672,6 @@ const App: React.FC = () => {
     };
   };
 
-  const buildExportFileName = () =>
-    `monotracker_backup_${new Date().toISOString().split('T')[0]}.csv`;
-
   const ensurePublicStoragePermission = async () => {
     if (Capacitor.getPlatform() !== 'android') return true;
     const current = await Filesystem.checkPermissions();
@@ -661,8 +693,10 @@ const App: React.FC = () => {
       window.history.back();
   };
 
-  const executeFileSave = async () => {
-      const fileName = buildExportFileName();
+    const executeFileSave = async () => {
+      const csvContent = exportData || `﻿${exportCSV(items)}`;
+      const { fileName, blob, base64 } = await buildExportZip(items, csvContent);
+
       const triggerDownload = (href: string) => {
           const link = document.createElement('a');
           link.href = href;
@@ -673,24 +707,6 @@ const App: React.FC = () => {
           document.body.removeChild(link);
       };
 
-      // Strategy -1: Capacitor Native Plugin (Highest Priority)
-      try {
-          // Attempt to use the registered Capacitor plugin
-          const result = await ExportPlugin.exportData({
-              content: exportData,
-              fileName: fileName,
-              mimeType: 'text/csv'
-          });
-          console.log('Export success via Capacitor:', result.uri);
-          await openAlert(TEXTS.exportSuccess[language]);
-          return; // Stop here if native export works
-      } catch (error: any) {
-          console.warn('Capacitor export failed or not available:', error);
-          // If error is "User cancelled", stop. Otherwise, fall through to other methods.
-          if (error.message === 'User cancelled export') return;
-      }
-
-      // Strategy 0: Native Filesystem (Capacitor)
       if (Capacitor.isNativePlatform()) {
           try {
               const permissionOk = await ensurePublicStoragePermission();
@@ -700,9 +716,8 @@ const App: React.FC = () => {
               }
               const result = await Filesystem.writeFile({
                   path: fileName,
-                  data: exportData,
-                  directory: Directory.Documents,
-                  encoding: Encoding.UTF8
+                  data: base64,
+                  directory: Directory.Documents
               });
               console.log('Export success via Filesystem:', result.uri);
               await openAlert(TEXTS.exportSuccess[language]);
@@ -711,40 +726,26 @@ const App: React.FC = () => {
               console.warn('Filesystem export failed:', error);
           }
       }
-      
-      // Strategy 1: Legacy Android Bridge (JSBridge - direct window injection)
-      if (window.Android && window.Android.saveCSV) {
-          try {
-              window.Android.saveCSV(exportData, fileName);
-              return; 
-          } catch (e) {
-              console.error("Native bridge failed, falling back to web methods", e);
-          }
-      }
 
-      // Strategy 2: File System Access API (Native "Save As" intent if supported by browser)
       try {
           if (window.showSaveFilePicker) {
               const handle = await window.showSaveFilePicker({
                   suggestedName: fileName,
                   types: [{
-                      description: 'CSV File',
-                      accept: { 'text/csv': ['.csv'] },
-                  }],
+                      description: 'ZIP File',
+                      accept: { 'application/zip': ['.zip'] }
+                  }]
               });
               const writable = await handle.createWritable();
-              await writable.write(exportData);
+              await writable.write(blob);
               await writable.close();
-              return; // Success
+              return;
           }
       } catch (err) {
           console.warn('FileSystem API failed or cancelled:', err);
-          // Fall through to legacy method
       }
 
-      // Strategy 3: Blob URL Download (works in most mobile browsers)
       try {
-          const blob = new Blob([exportData], { type: 'text/csv;charset=utf-8;' });
           const url = URL.createObjectURL(blob);
           triggerDownload(url);
           setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -753,11 +754,8 @@ const App: React.FC = () => {
           console.warn('Blob download failed:', e);
       }
 
-      // Strategy 4: Data URI Download (Bypasses Blob Registry restrictions in some WebViews)
       try {
-          // Use Base64 to ensure encoding is preserved across strict boundaries
-          const base64Content = btoa(unescape(encodeURIComponent(exportData)));
-          const dataUri = `data:text/csv;base64,${base64Content}`;
+          const dataUri = `data:application/zip;base64,${base64}`;
           triggerDownload(dataUri);
       } catch (e) {
           console.error('Data URI download failed:', e);
@@ -765,21 +763,22 @@ const App: React.FC = () => {
       }
   };
 
-  const executeShare = async () => {
-      const fileName = buildExportFileName();
+
+    const executeShare = async () => {
+      const csvContent = exportData || `﻿${exportCSV(items)}`;
+      const { fileName, blob, base64 } = await buildExportZip(items, csvContent);
 
       if (Capacitor.isNativePlatform()) {
           try {
               const result = await Filesystem.writeFile({
                   path: fileName,
-                  data: exportData,
-                  directory: Directory.Cache,
-                  encoding: Encoding.UTF8
+                  data: base64,
+                  directory: Directory.Cache
               });
               await Share.share({
                   files: [result.uri],
-                  title: 'MonoTracker Backup',
-                  dialogTitle: 'MonoTracker Backup'
+                  title: 'Tracker Backup',
+                  dialogTitle: 'Tracker Backup'
               });
               return;
           } catch (e) {
@@ -792,12 +791,12 @@ const App: React.FC = () => {
           }
       }
 
-      const file = new File([exportData], fileName, { type: 'text/csv' });
+      const file = new File([blob], fileName, { type: 'application/zip' });
       try {
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
               await navigator.share({
                   files: [file],
-                  title: 'MonoTracker Backup'
+                  title: 'Tracker Backup'
               });
           } else {
               await openAlert(TEXTS.shareNotSupported[language]);
@@ -806,6 +805,7 @@ const App: React.FC = () => {
           console.warn('Share failed:', e);
       }
   };
+
 
   const executeCopy = async () => {
       try {
@@ -816,17 +816,20 @@ const App: React.FC = () => {
       }
   };
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const content = evt.target?.result as string;
-      const newItems = importCSV(content);
-      setItems(prev => [...prev, ...newItems]); 
-    };
-    reader.readAsText(file);
+    try {
+      const newItems = await importBackupFile(file);
+      setItems(prev => [...prev, ...newItems]);
+    } catch (error) {
+      console.warn('Import failed:', error);
+      await openAlert(TEXTS.importFailed[language]);
+    } finally {
+      e.target.value = '';
+    }
   };
+
 
   // --- Computed ---
   const themeColors = THEMES[theme];
@@ -1057,17 +1060,17 @@ const App: React.FC = () => {
     <div className={`min-h-screen ${themeColors.surface} ${themeColors.onSurface} font-sans transition-colors duration-500`}>
       {/* Top Bar */}
       <div className="pt-12 px-6 pb-4">
-        <h1 className="text-3xl font-bold tracking-tight mb-1">MonoTracker</h1>
+        <h1 className="text-3xl font-bold tracking-tight mb-1">Tracker</h1>
         {activeTab === 'profile' ? (
              <p className="opacity-60 text-sm">{TEXTS.tabMine[language]}</p>
         ) : activeTab === 'stats' ? (
              <p className="opacity-60 text-sm">{TEXTS.tabStats[language]}</p>
-        ) : (
+        ) : activeTab === 'owned' ? (
             <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-light">{currencySymbol}{activeTab === 'owned' ? totalValue.toLocaleString() : '0'}</span>
+                <span className="text-4xl font-light">{currencySymbol}{totalValue.toLocaleString()}</span>
                 <span className="text-sm opacity-60 uppercase tracking-widest font-semibold">{TEXTS.totalValue[language]}</span>
             </div>
-        )}
+        ) : null}
       </div>
 
       {/* STATISTICS TAB */}
@@ -1132,7 +1135,7 @@ const App: React.FC = () => {
                              </div>
                          </div>
                      ))}
-                     {stats.statusStats.length === 0 && <p className="text-center text-xs opacity-40">No data</p>}
+                     {stats.statusStats.length === 0 && <p className="text-center text-xs opacity-40">{TEXTS.noData[language]}</p>}
                  </div>
              </div>
 
@@ -1288,7 +1291,7 @@ const App: React.FC = () => {
                              </div>
                          </div>
                      ))}
-                     {stats.timelineData.length === 0 && <p className="ml-4 text-xs opacity-40">No activity</p>}
+                     {stats.timelineData.length === 0 && <p className="ml-4 text-xs opacity-40">{TEXTS.noActivity[language]}</p>}
                  </div>
              </div>
         </div>
@@ -1384,7 +1387,7 @@ const App: React.FC = () => {
              </button>
              <label className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer">
                 <span className="flex items-center gap-3 font-semibold"><ICONS.Upload size={20}/> {TEXTS.import[language]}</span>
-                <input type="file" accept=".csv" hidden onChange={handleImport} />
+                <input type="file" accept=".csv,.zip,application/zip" hidden onChange={handleImport} />
              </label>
           </div>
         </div>
@@ -1713,6 +1716,7 @@ const App: React.FC = () => {
               onEdit={handleEditItem}
               onDelete={handleDeleteItem}
               onAddUsage={handleAddUsage}
+              onPreviewImage={openImagePreview}
             />
         </>
       )}
@@ -1801,6 +1805,31 @@ const App: React.FC = () => {
           onConfirm={dialog.onConfirm}
           onCancel={dialog.onCancel}
         />
+      )}
+
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={handleCloseImagePreview}
+        >
+          <div className="relative max-w-[90vw] max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={handleCloseImagePreview}
+              className="absolute -top-4 -right-4 w-10 h-10 rounded-full bg-white/90 text-gray-700 shadow-lg flex items-center justify-center"
+            >
+              <ICONS.X size={18} />
+            </button>
+            <img
+              src={previewImage.src}
+              alt={previewImage.name || 'Preview'}
+              className="max-w-[90vw] max-h-[85vh] rounded-2xl object-contain shadow-2xl"
+            />
+            {previewImage.name && (
+              <div className="mt-3 text-center text-xs text-white/80">{previewImage.name}</div>
+            )}
+          </div>
+        </div>
       )}
 
       <AddItemModal 

@@ -8,7 +8,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['"Noto Sans SC"', '"Noto Sans TC"', '"Noto Sans JP"', 'Inter', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         '4xl': '2rem',
