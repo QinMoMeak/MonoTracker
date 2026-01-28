@@ -158,9 +158,24 @@ const Timeline: React.FC<TimelineProps> = ({ items, theme, language, onEdit, onA
                                         <span className={`font-mono font-bold text-lg ${themeColors.secondary}`}>
                                             {currencySymbol}{item.price.toLocaleString()}
                                         </span>
+                                        {((item.quantity || 1) > 1) && (
+                                          <>
+                                            <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-700">
+                                              x{item.quantity || 1}
+                                            </span>
+                                            <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-700">
+                                              {TEXTS.avgPrice[language]} {currencySymbol}{(item.avgPrice ?? (item.price / (item.quantity || 1))).toFixed(2)}
+                                            </span>
+                                          </>
+                                        )}
                                         {item.msrp > item.price && (
                                             <span className="text-xs text-gray-400 line-through decoration-gray-300 dark:decoration-gray-600">
                                                 {currencySymbol}{item.msrp.toLocaleString()}
+                                            </span>
+                                        )}
+                                        {item.storeName && (
+                                            <span className="ml-2 text-[10px] text-gray-500 bg-gray-50 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-700">
+                                                {item.storeName}
                                             </span>
                                         )}
                                         {/* Channel Badge */}

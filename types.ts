@@ -1,11 +1,11 @@
-
+﻿
 export type Language = 'zh-CN' | 'zh-TW' | 'en' | 'ja';
 export type ThemeColor = 'blue' | 'green' | 'violet' | 'orange' | 'rose';
 export type AppearanceMode = 'light' | 'dark' | 'system';
 export type Tab = 'owned' | 'wishlist' | 'stats' | 'profile';
 // CategoryType is now loosely typed to allow custom strings, but keeps specific keys for config lookup
 export type CategoryType = 'digital' | 'fashion' | 'home' | 'beauty' | 'books' | 'sports' | 'health' | 'other' | string;
-export type AiProvider = 'disabled' | 'openai' | 'gemini' | 'anthropic' | 'deepseek' | 'moonshot' | 'qwen' | 'zhipu';
+export type AiProvider = 'disabled' | 'openai' | 'gemini' | 'anthropic' | 'deepseek' | 'moonshot' | 'qwen' | 'zhipu' | 'doubao';
 
 export interface AiCredentials {
   apiKey: string;
@@ -37,11 +37,14 @@ export interface Item {
   name: string;
   price: number;
   msrp: number;
+  quantity: number;
+  avgPrice: number;
   currency: string;
   purchaseDate: string; // ISO 8601 YYYY-MM-DD
   status: 'new' | 'used' | 'broken' | 'sold' | 'emptied' | string; // Relaxed to string for custom
   category: CategoryType;
   channel?: string; // New field for Purchase Channel
+  storeName?: string; // Store or merchant name
   note: string;
   link: string;
   image?: string; // Base64
@@ -65,8 +68,7 @@ export interface AppState {
   aiConfig: AiConfig;
   categories: string[];
   statuses: string[];
-  channels: string[];
-}
+  channels: string[];\n}
 
 // File System Access API Types
 export interface FileSystemHandle {
@@ -102,3 +104,6 @@ declare global {
     Android?: AndroidInterface;
   }
 }
+
+
+

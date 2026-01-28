@@ -66,9 +66,12 @@ const normalizeItem = (raw: any): Item => {
   item.type = item.type === 'wishlist' ? 'wishlist' : 'owned';
   item.price = typeof item.price === 'number' ? item.price : parseFloat(String(item.price || '')) || 0;
   item.msrp = typeof item.msrp === 'number' ? item.msrp : parseFloat(String(item.msrp || '')) || 0;
+  item.quantity = typeof item.quantity === 'number' ? item.quantity : parseFloat(String(item.quantity || '')) || 1;
+  item.avgPrice = typeof item.avgPrice === 'number' ? item.avgPrice : Number((item.price / (item.quantity || 1)).toFixed(2));
   item.usageCount = typeof item.usageCount === 'number' ? item.usageCount : parseFloat(String(item.usageCount || '')) || 0;
   item.priceHistory = Array.isArray(item.priceHistory) ? item.priceHistory : [];
   item.category = item.category || 'other';
+  if (!item.storeName) item.storeName = '';
   if (!item.image) item.image = undefined;
   return item as Item;
 };

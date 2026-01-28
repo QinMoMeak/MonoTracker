@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
@@ -76,6 +76,60 @@ const App: React.FC = () => {
 
   const currencySymbol = '\u00a5';
 
+  const formatNumber = (value: number, maximumFractionDigits = 2) => {
+    if (!Number.isFinite(value)) return '0';
+    const fixed = value.toFixed(maximumFractionDigits);
+    return fixed.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
+  };
+
+  const toNumber = (value: unknown) => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    const cleaned = String(value ?? '').replace(/[^\d.-]/g, '');
+    const parsed = Number.parseFloat(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const normalizeDate = (value?: string) => {
+    const raw = String(value || '').trim();
+    if (!raw) return new Date().toISOString().split('T')[0];
+    const cleaned = raw.replace(/[./]/g, '-');
+    const match = cleaned.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (match) {
+      const [, y, m, d] = match;
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    const parsed = new Date(cleaned);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString().split('T')[0];
+    }
+    return new Date().toISOString().split('T')[0];
+  };
+
+  const normalizeItem = (item: Item): Item => {
+    const safePrice = toNumber(item.price);
+    const safeMsrp = toNumber(item.msrp);
+    const safeUsage = toNumber(item.usageCount);
+    const safeQuantity = Math.max(1, Math.floor(toNumber((item as any).quantity) || 1));
+    const computedAvg = safeQuantity > 0 ? Number((safePrice / safeQuantity).toFixed(2)) : safePrice;
+    const safeAvg = toNumber((item as any).avgPrice) || computedAvg;
+    const id = item.id || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+    return {
+      ...item,
+      id,
+      type: item.type === 'wishlist' ? 'wishlist' : 'owned',
+      price: Number.isFinite(safePrice) ? safePrice : 0,
+      msrp: Number.isFinite(safeMsrp) ? safeMsrp : 0,
+      quantity: safeQuantity,
+      avgPrice: Number.isFinite(safeAvg) ? safeAvg : computedAvg,
+      usageCount: Number.isFinite(safeUsage) ? safeUsage : 0,
+      priceHistory: Array.isArray(item.priceHistory) ? item.priceHistory : [],
+      category: item.category || 'other',
+      status: item.status || 'new',
+      storeName: item.storeName || '',
+      purchaseDate: normalizeDate(item.purchaseDate)
+    };
+  };
+
   const channelLabelMap = useMemo(() => {
     const map = new Map<string, string>();
     channels.forEach(c => {
@@ -149,44 +203,54 @@ const App: React.FC = () => {
 
   // --- Initialization ---
   useEffect(() => {
-    const loaded = loadState();
-    if (loaded.items) {
-        // Migration: Ensure category exists
-        const migratedItems = loaded.items.map(i => ({
-            ...i,
-            category: i.category || 'other'
-        }));
-        setItems(migratedItems);
-    } else {
-        setItems(INITIAL_ITEMS);
-    }
-    if (loaded.language) setLanguage(loaded.language);
-    if (loaded.theme) setTheme(loaded.theme);
-    if (loaded.appearance) setAppearance(loaded.appearance);
+    let isMounted = true;
 
-    const legacyCategories = (loaded as any).customCategories || [];
-    const legacyChannels = (loaded as any).customChannels || [];
-    const legacyStatuses = (loaded as any).customStatuses || [];
+    const init = async () => {
+      const loaded = await loadState();
+      if (!isMounted) return;
 
-    const initialCategories = loaded.categories?.length
-      ? mergeUnique([...loaded.categories, 'other'])
-      : mergeUnique([...Object.keys(CATEGORY_CONFIG), ...legacyCategories]);
-    const initialStatuses = loaded.statuses?.length
-      ? mergeUnique([...loaded.statuses, 'new'])
-      : mergeUnique([...DEFAULT_STATUSES, ...legacyStatuses]);
-    const initialChannels = loaded.channels?.length
-      ? loaded.channels
-      : mergeUnique([...DEFAULT_CHANNELS, ...legacyChannels]);
+      if (loaded.items) {
+          const migratedItems = loaded.items.map(normalizeItem).map(i => ({
+              ...i,
+              category: i.category || 'other'
+          }));
+          setItems(migratedItems);
+      } else {
+          setItems(INITIAL_ITEMS);
+      }
+      if (loaded.language) setLanguage(loaded.language);
+      if (loaded.theme) setTheme(loaded.theme);
+      if (loaded.appearance) setAppearance(loaded.appearance);
 
-    setCategories(initialCategories);
-    setStatuses(initialStatuses);
-    setChannels(initialChannels);
+      const legacyCategories = (loaded as any).customCategories || [];
+      const legacyChannels = (loaded as any).customChannels || [];
+      const legacyStatuses = (loaded as any).customStatuses || [];
 
-    const fallbackProvider: AiProvider = (loaded as any).showAiFab === false ? 'disabled' : 'gemini';
-    setAiConfig(buildAiConfig(loaded.aiConfig || {}, fallbackProvider));
-    
-    // Mark as loaded to enable saving
-    setIsLoaded(true);
+      const initialCategories = loaded.categories?.length
+        ? mergeUnique([...loaded.categories, 'other'])
+        : mergeUnique([...Object.keys(CATEGORY_CONFIG), ...legacyCategories]);
+      const initialStatuses = loaded.statuses?.length
+        ? mergeUnique([...loaded.statuses, 'new'])
+        : mergeUnique([...DEFAULT_STATUSES, ...legacyStatuses]);
+      const initialChannels = loaded.channels?.length
+        ? loaded.channels
+        : mergeUnique([...DEFAULT_CHANNELS, ...legacyChannels]);
+
+      setCategories(initialCategories);
+      setStatuses(initialStatuses);
+      setChannels(initialChannels);
+
+      const fallbackProvider: AiProvider = (loaded as any).showAiFab === false ? 'disabled' : 'gemini';
+      setAiConfig(buildAiConfig(loaded.aiConfig || {}, fallbackProvider));
+
+      setIsLoaded(true);
+    };
+
+    init();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -199,7 +263,7 @@ const App: React.FC = () => {
     // Prevent saving if we haven't loaded yet to avoid overwriting with initial empty state
     if (!isLoaded) return;
 
-    saveState({ items, language, theme, appearance, aiConfig, categories, statuses, channels });
+    void saveState({ items, language, theme, appearance, aiConfig, categories, statuses, channels });
   }, [items, language, theme, appearance, aiConfig, categories, statuses, channels, isLoaded]);
 
   const closeAddModal = () => {
@@ -442,21 +506,33 @@ const App: React.FC = () => {
   const handleSaveItem = (itemData: Partial<Item>) => {
     if (itemData.id) {
         // Edit existing item
-        setItems(prev => prev.map(i => i.id === itemData.id ? { ...i, ...itemData } as Item : i));
+        setItems(prev => prev.map(i => {
+          if (i.id !== itemData.id) return i;
+          const nextPrice = itemData.price ?? i.price ?? 0;
+          const nextQty = Math.max(1, Math.floor(toNumber((itemData.quantity ?? i.quantity) as any) || 1));
+          const nextAvg = itemData.avgPrice ?? Number((nextPrice / nextQty).toFixed(2));
+          return { ...i, ...itemData, quantity: nextQty, avgPrice: nextAvg } as Item;
+        }));
     } else {
         // Create new item
+        const quantity = Math.max(1, Math.floor(toNumber(itemData.quantity as any) || 1));
+        const price = itemData.price || 0;
+        const avgPrice = itemData.avgPrice ?? Number((price / quantity).toFixed(2));
         const newItem: Item = {
             id: Date.now().toString(),
             type: (itemData.type as any) || (activeTab === 'wishlist' ? 'wishlist' : 'owned'),
             name: itemData.name || TEXTS.unknownItem[language],
-            price: itemData.price || 0,
-            msrp: itemData.msrp || itemData.price || 0,
+            price,
+            msrp: itemData.msrp || price || 0,
+            quantity,
+            avgPrice,
             purchaseDate: itemData.purchaseDate || new Date().toISOString().split('T')[0],
             currency: 'CNY',
             status: (itemData.status as any) || 'new',
             category: (itemData.category as any) || 'other',
             note: itemData.note || '',
             link: itemData.link || '',
+            storeName: itemData.storeName || '',
             image: itemData.image,
             usageCount: itemData.usageCount || 0,
             discountRate: itemData.discountRate,
@@ -694,7 +770,7 @@ const App: React.FC = () => {
   };
 
     const executeFileSave = async () => {
-      const csvContent = exportData || `﻿${exportCSV(items)}`;
+      const csvContent = exportData || `\ufeff${exportCSV(items)}`;
       const { fileName, blob, base64 } = await buildExportZip(items, csvContent);
 
       const triggerDownload = (href: string) => {
@@ -765,7 +841,7 @@ const App: React.FC = () => {
 
 
     const executeShare = async () => {
-      const csvContent = exportData || `﻿${exportCSV(items)}`;
+      const csvContent = exportData || `\ufeff${exportCSV(items)}`;
       const { fileName, blob, base64 } = await buildExportZip(items, csvContent);
 
       if (Capacitor.isNativePlatform()) {
@@ -821,7 +897,34 @@ const App: React.FC = () => {
     if (!file) return;
     try {
       const newItems = await importBackupFile(file);
-      setItems(prev => [...prev, ...newItems]);
+      setItems(prev => {
+        const byId = new Map(prev.map(item => [item.id, item]));
+        const signature = (item: Item) => [
+          item.type,
+          item.name,
+          item.price,
+          item.purchaseDate,
+          item.channel,
+          item.category,
+          item.status
+        ].join('|');
+        const bySignature = new Map(prev.map(item => [signature(item), item.id]));
+
+        newItems.forEach(raw => {
+          const normalized = normalizeItem(raw as Item);
+          const sig = signature(normalized);
+          const existingId = byId.has(normalized.id) ? normalized.id : bySignature.get(sig);
+          if (existingId && byId.has(existingId)) {
+            const current = byId.get(existingId)!;
+            byId.set(existingId, { ...current, ...normalized, id: existingId });
+          } else {
+            byId.set(normalized.id, normalized);
+            bySignature.set(sig, normalized.id);
+          }
+        });
+
+        return Array.from(byId.values());
+      });
     } catch (error) {
       console.warn('Import failed:', error);
       await openAlert(TEXTS.importFailed[language]);
@@ -891,6 +994,7 @@ const App: React.FC = () => {
             item.name,
             item.note,
             item.link,
+            item.storeName,
             item.channel,
             channelLabel,
             item.status,
@@ -1067,7 +1171,7 @@ const App: React.FC = () => {
              <p className="opacity-60 text-sm">{TEXTS.tabStats[language]}</p>
         ) : activeTab === 'owned' ? (
             <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-light">{currencySymbol}{totalValue.toLocaleString()}</span>
+                <span className="text-4xl font-light">{currencySymbol}{formatNumber(totalValue)}</span>
                 <span className="text-sm opacity-60 uppercase tracking-widest font-semibold">{TEXTS.totalValue[language]}</span>
             </div>
         ) : null}
@@ -1084,7 +1188,7 @@ const App: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                       <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
                           <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.totalValue[language]}</p>
-                          <p className={`text-2xl font-light ${themeColors.secondary}`}>{currencySymbol}{stats.totalVal.toLocaleString()}</p>
+                          <p className={`text-2xl font-light ${themeColors.secondary}`}>{currencySymbol}{formatNumber(stats.totalVal)}</p>
                       </div>
                       <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
                           <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.itemCount[language]}</p>
@@ -1108,7 +1212,7 @@ const App: React.FC = () => {
                                         className={`w-full transition-all duration-500 ${themeColors.primary}`} 
                                         style={{ height: `${height}%`, opacity: value > 0 ? 0.8 : 0.1 }} 
                                      />
-                                     <span className="absolute bottom-1 text-[10px] font-bold text-gray-500 dark:text-gray-300">{currencySymbol}{value.toFixed(0)}</span>
+                                     <span className="absolute bottom-1 text-[10px] font-bold text-gray-500 dark:text-gray-300">{currencySymbol}{formatNumber(value, 0)}</span>
                                  </div>
                                  <span className="text-[10px] mt-2 text-gray-400 font-medium whitespace-nowrap">{month}</span>
                              </div>
@@ -1200,7 +1304,7 @@ const App: React.FC = () => {
                                          </div>
                                          <span className="text-sm font-medium">{getCategoryLabel(stat.cat)}</span>
                                      </div>
-                                     <span className="text-sm font-bold">?{stat.value.toLocaleString()}</span>
+                                     <span className="text-sm font-bold">{currencySymbol}{formatNumber(stat.value)}</span>
                                  </div>
                                  <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                                      <div 
@@ -1225,7 +1329,7 @@ const App: React.FC = () => {
                        <div key={stat.channel}>
                          <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-medium">{getChannelLabel(stat.channel)}</span>
-                           <span className="text-sm font-bold">?{stat.value.toLocaleString()}</span>
+                           <span className="text-sm font-bold">{currencySymbol}{formatNumber(stat.value)}</span>
                          </div>
                          <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                            <div
@@ -1363,6 +1467,7 @@ const App: React.FC = () => {
                 ))}
               </div>
             </div>
+
 
             {/* Language */}
             <div>
@@ -1855,3 +1960,21 @@ const App: React.FC = () => {
 };
 
 export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

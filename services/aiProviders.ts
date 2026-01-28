@@ -1,4 +1,4 @@
-import { AiProvider } from "../types";
+﻿import { AiProvider } from "../types";
 
 export type AiProviderType = "disabled" | "openai" | "anthropic" | "gemini";
 
@@ -20,7 +20,7 @@ export interface AiProviderMeta {
 
 export const AI_PROVIDERS: AiProviderMeta[] = [
   { id: "disabled", type: "disabled", labelKey: "aiDisabled", defaultModel: "", models: [] },
-  { 
+  {
     id: "openai",
     type: "openai",
     labelKey: "aiOpenAI",
@@ -34,7 +34,7 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
       { id: "gpt-4.1", label: "gpt-4.1" }
     ]
   },
-  { 
+  {
     id: "gemini",
     type: "gemini",
     labelKey: "aiGemini",
@@ -47,7 +47,7 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
       { id: "gemini-2.0-pro", label: "gemini-2.0-pro" }
     ]
   },
-  { 
+  {
     id: "anthropic",
     type: "anthropic",
     labelKey: "aiAnthropic",
@@ -60,7 +60,7 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
       { id: "claude-3-opus-20240229", label: "claude-3-opus" }
     ]
   },
-  { 
+  {
     id: "deepseek",
     type: "openai",
     labelKey: "aiDeepSeek",
@@ -68,22 +68,11 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
     defaultBaseUrl: "https://api.deepseek.com/v1",
     models: [
       { id: "deepseek-chat", label: "deepseek-chat" },
-      { id: "deepseek-reasoner", label: "deepseek-reasoner" }
+      { id: "deepseek-reasoner", label: "deepseek-reasoner" },
+      { id: "deepseek-v3-2-251201", label: "deepseek-v3-2-251201", defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3/chat/completions" }
     ]
   },
-  { 
-    id: "moonshot",
-    type: "openai",
-    labelKey: "aiMoonshot",
-    defaultModel: "moonshot-v1-8k",
-    defaultBaseUrl: "https://api.moonshot.cn/v1",
-    models: [
-      { id: "moonshot-v1-8k", label: "moonshot-v1-8k" },
-      { id: "moonshot-v1-32k", label: "moonshot-v1-32k" },
-      { id: "moonshot-v1-128k", label: "moonshot-v1-128k" }
-    ]
-  },
-  { 
+  {
     id: "qwen",
     type: "openai",
     labelKey: "aiQwen",
@@ -95,7 +84,7 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
       { id: "qwen-max", label: "qwen-max" }
     ]
   },
-  { 
+  {
     id: "zhipu",
     type: "openai",
     labelKey: "aiZhipu",
@@ -105,6 +94,18 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
       { id: "glm-4.6v-flash", label: "glm-4.6v-flash", defaultBaseUrl: "https://open.bigmodel.cn/api/paas/v4/chat/completions" }
     ]
   },
+  {
+    id: "doubao",
+    type: "openai",
+    labelKey: "aiDoubao",
+    defaultModel: "doubao-seed-1-6-lite-251015",
+    defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+    supportsVision: true,
+    models: [
+      { id: "doubao-seed-1-6-lite-251015", label: "doubao-seed-1-6-lite-251015", defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3/chat/completions" },
+      { id: "doubao-seed-1-8-251228", label: "doubao-seed-1-8-251228", defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3/chat/completions" }
+    ]
+  }
 ];
 
 export const getProviderMeta = (provider: AiProvider): AiProviderMeta | undefined =>
@@ -115,3 +116,7 @@ export const getProviderModels = (provider: AiProvider): AiProviderModel[] =>
 
 export const getModelMeta = (provider: AiProvider, model: string): AiProviderModel | undefined =>
   getProviderModels(provider).find(m => m.id === model);
+
+
+
+
