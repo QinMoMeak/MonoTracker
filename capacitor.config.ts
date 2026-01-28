@@ -1,7 +1,7 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+﻿import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.example.app',
+  appId: 'com.Tracker.app',
   appName: 'Tracker',
   webDir: 'dist',
   plugins: {
@@ -17,3 +17,4 @@ const config: CapacitorConfig = {
 };
 
 export default config;
+

@@ -1,4 +1,4 @@
-import { AiRuntimeConfig, Item } from "../types";
+﻿import { AiRuntimeConfig, Item } from "../types";
 import { getProviderMeta } from "./aiProviders";
 
 type AnalyzeOptions = {
@@ -9,6 +9,7 @@ type AnalyzeOptions = {
   statuses: string[];
   channels: string[];
   today: string;
+  language: 'zh-CN' | 'zh-TW' | 'en' | 'ja';
 };
 
 const cleanJsonText = (raw: string) => {
@@ -28,6 +29,13 @@ const safeParse = (raw: string): Partial<Item> => {
   }
 };
 
+const getLanguageLabel = (lang: AnalyzeOptions['language']) => {
+  if (lang === 'zh-CN') return 'Simplified Chinese';
+  if (lang === 'zh-TW') return 'Traditional Chinese';
+  if (lang === 'ja') return 'Japanese';
+  return 'English';
+};
+
 const buildPrompt = (options: AnalyzeOptions) => {
   const categoryList = options.categories.join(", ");
   const statusList = options.statuses.join(", ");
@@ -35,20 +43,23 @@ const buildPrompt = (options: AnalyzeOptions) => {
 
   return [
     "You are a strict data extraction engine.",
-    "Return ONLY valid JSON with these fields: name, price, msrp, purchaseDate, type, category, status, channel, note.",
+    "Return ONLY valid JSON with these fields: name, price, msrp, purchaseDate, type, category, status, channel, storeName, note.",
     "You may receive multiple images for the same product. Combine evidence across all images.",
     "Rules:",
+    `- Note language: ${getLanguageLabel(options.language)}.`,
     "- name: short product name.",
     "- type: 'owned' if already bought/owned, otherwise 'wishlist'.",
     `- purchaseDate: YYYY-MM-DD, default to ${options.today}.`,
     "- price/msrp: numbers, use 0 if missing.",
-    `- category: choose the closest from [${categoryList}]. If none fits, use "other".`,
-    `- status: choose from [${statusList}]. If unknown, use "new".`,
+    `- category: choose the closest from [${categoryList}]. If none fits, use \"other\".`,
+    `- status: choose from [${statusList}]. If unknown, use \"new\".`,
     `- channel: choose from [${channelList}] when possible, otherwise empty string.`,
-    "- note: short summary (<= 20 words).",
+    "- storeName: merchant or shop name, empty if unknown.",
+    "- note: concise bullet-style summary in the requested language (<= 20 words), covering key identifiers (name/model/spec), price, channel/store, and date if known. Make it usable to reconstruct the same item later.",
     "Do not include extra keys or explanations."
   ].join("\n");
 };
+
 
 const buildUserText = (text?: string) => {
   if (!text) return "No user text provided.";
@@ -62,6 +73,45 @@ const buildChatCompletionsUrl = (rawBaseUrl?: string) => {
   return `${baseUrl}/chat/completions`;
 };
 
+const buildResponsesUrl = (rawBaseUrl?: string) => {
+  const baseUrl = (rawBaseUrl || "").replace(/\/$/, "");
+  if (!baseUrl) return "";
+  if (baseUrl.endsWith("/responses")) return baseUrl;
+  return `${baseUrl}/responses`;
+};
+
+const isResponsesEndpoint = (config: AiRuntimeConfig) => {
+  const baseUrl = (config.baseUrl || "").toLowerCase();
+  return baseUrl.includes("/responses") ;
+};
+
+const extractResponsesText = (data: any) => {
+  if (typeof data?.output_text === "string") return data.output_text;
+
+  const output = data?.output;
+  if (Array.isArray(output)) {
+    const texts: string[] = [];
+    output.forEach((item: any) => {
+      if (typeof item?.text === "string") texts.push(item.text);
+      const content = item?.content;
+      if (Array.isArray(content)) {
+        content.forEach((part: any) => {
+          if (typeof part?.text === "string") texts.push(part.text);
+          if (typeof part?.output_text === "string") texts.push(part.output_text);
+        });
+      }
+    });
+    if (texts.length) return texts.join("");
+  }
+
+  const choiceText = data?.choices?.[0]?.message?.content;
+  if (typeof choiceText === "string") return choiceText;
+
+  const messageText = data?.message?.content;
+  if (typeof messageText === "string") return messageText;
+
+  return "{}";
+};
 
 const callOpenAICompatible = async (config: AiRuntimeConfig, prompt: string, options: AnalyzeOptions) => {
   const url = buildChatCompletionsUrl(config.baseUrl);
@@ -95,6 +145,12 @@ const callOpenAICompatible = async (config: AiRuntimeConfig, prompt: string, opt
     messages.push({ role: "user", content: buildUserText(options.text) });
   }
 
+  const extraBody: Record<string, any> = {};
+  if (config.provider === "doubao") {
+    extraBody.max_completion_tokens = 65535;
+    extraBody.reasoning_effort = "medium";
+  }
+
   const response = await fetch(url, {
     method: "POST",
     headers,
@@ -102,6 +158,7 @@ const callOpenAICompatible = async (config: AiRuntimeConfig, prompt: string, opt
       model: config.model,
       messages,
       temperature: 0.2,
+      ...extraBody,
     }),
   });
 
@@ -112,6 +169,65 @@ const callOpenAICompatible = async (config: AiRuntimeConfig, prompt: string, opt
   const data = await response.json();
   const content = data?.choices?.[0]?.message?.content ?? "{}";
   return safeParse(content);
+};
+
+const callResponsesApi = async (config: AiRuntimeConfig, prompt: string, options: AnalyzeOptions) => {
+  const url = buildResponsesUrl(config.baseUrl);
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${config.apiKey}`,
+  };
+
+  const images = options.imageBase64s?.length
+    ? options.imageBase64s
+    : options.imageBase64
+      ? [options.imageBase64]
+      : [];
+
+  const content: any[] = [
+    { type: "input_text", text: `${prompt}\n\n${buildUserText(options.text)}` }
+  ];
+
+  images.forEach((img) => {
+    const imageUrl = img.startsWith("data:")
+      ? img
+      : `data:image/jpeg;base64,${img}`;
+    content.push({ type: "input_image", image_url: imageUrl });
+  });
+
+  const body: Record<string, any> = {
+    model: config.model,
+    stream: false,
+    input: [
+      {
+        role: "user",
+        content,
+      }
+    ],
+  };
+
+  if (config.model === "deepseek-v3-2-251201") {
+    body.tools = [
+      {
+        type: "web_search",
+        max_keyword: 3,
+      }
+    ];
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`AI request failed: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const text = extractResponsesText(data);
+  return safeParse(text);
 };
 
 const callAnthropic = async (config: AiRuntimeConfig, prompt: string, options: AnalyzeOptions) => {
@@ -219,6 +335,8 @@ export const analyzeItemDetails = async (
     data = await callGemini(config, prompt, options);
   } else if (provider.type === "anthropic") {
     data = await callAnthropic(config, prompt, options);
+  } else if (provider.type === "openai" && isResponsesEndpoint(config)) {
+    data = await callResponsesApi(config, prompt, options);
   } else {
     data = await callOpenAICompatible(config, prompt, options);
   }
@@ -235,3 +353,4 @@ export const analyzeItemDetails = async (
 
   return data;
 };
+

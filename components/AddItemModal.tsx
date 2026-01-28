@@ -40,15 +40,23 @@ const AddItemModal: React.FC<Props> = ({
 
   // Manual Form State
   const [formData, setFormData] = useState<Partial<Item>>({
-    name: '', price: 0, msrp: 0, note: '', link: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], priceHistory: [], valueDisplay: 'both'
+    name: '', price: 0, msrp: 0, quantity: 1, avgPrice: 0, note: '', link: '', storeName: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], priceHistory: [], valueDisplay: 'both'
   });
+
+  const computeAvgPrice = (price: number, quantity: number) => {
+    const safeQuantity = quantity > 0 ? quantity : 1;
+    return Number((price / safeQuantity).toFixed(2));
+  };
 
   // Reset or Populate form when modal opens
   useEffect(() => {
     if (isOpen) {
       if (initialItem) {
         setMode('manual');
-        setFormData({ ...initialItem, channel: normalizeChannelValue(initialItem.channel), valueDisplay: initialItem.valueDisplay || 'both' });
+        const quantity = Math.max(1, Math.floor(Number(initialItem.quantity || 1)));
+        const price = typeof initialItem.price === 'number' ? initialItem.price : 0;
+        const avgPrice = typeof initialItem.avgPrice === 'number' ? initialItem.avgPrice : computeAvgPrice(price, quantity);
+        setFormData({ ...initialItem, quantity, avgPrice, storeName: initialItem.storeName || '', channel: normalizeChannelValue(initialItem.channel), valueDisplay: initialItem.valueDisplay || 'both' });
         setImage(initialItem.image);
         setImages(initialItem.image ? [initialItem.image] : []);
         setDesc('');
@@ -58,7 +66,7 @@ const AddItemModal: React.FC<Props> = ({
         // Use the passed initialMode (ai or manual)
         setMode(aiEnabled ? initialMode : 'manual');
         setFormData({ 
-          name: '', price: 0, msrp: 0, note: '', link: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], priceHistory: [], valueDisplay: 'both' 
+          name: '', price: 0, msrp: 0, quantity: 1, avgPrice: 0, note: '', link: '', storeName: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], priceHistory: [], valueDisplay: 'both' 
         });
         setImage(undefined);
         setImages([]);
@@ -170,16 +178,23 @@ const AddItemModal: React.FC<Props> = ({
         categories,
         statuses,
         channels,
-        today
+        today,
+        language
       });
       const price = typeof result.price === 'number' ? result.price : parseFloat(String(result.price || '')) || 0;
       const msrp = typeof result.msrp === 'number' ? result.msrp : parseFloat(String(result.msrp || '')) || 0;
+      const storeName = typeof result.storeName === 'string' ? result.storeName : '';
+      const nextQuantity = Math.max(1, Math.floor(Number(result.quantity || 0) || (Number(formData.quantity || 1) || 1)));
+      const nextAvgPrice = computeAvgPrice(price, nextQuantity);
       setFormData(prev => {
         const nextChannel = normalizeChannelValue(result.channel || prev.channel);
         const resolvedType = activeTab === 'wishlist' ? 'wishlist' : (result.type || prev.type || activeTab);
         return ({
           ...prev,
           ...result,
+          quantity: nextQuantity,
+          avgPrice: typeof result.avgPrice === 'number' ? result.avgPrice : nextAvgPrice,
+          storeName: storeName || prev.storeName || '',
           price,
           msrp: msrp || price,
           purchaseDate: result.purchaseDate || today,
@@ -199,8 +214,13 @@ const AddItemModal: React.FC<Props> = ({
   };
 
   const handleSubmit = () => {
+    const quantity = Math.max(1, Math.floor(Number(formData.quantity || 1)));
+    const price = Number(formData.price || 0);
+    const avgPrice = computeAvgPrice(price, quantity);
     onSave({ 
         ...formData,
+        quantity,
+        avgPrice,
         channel: normalizeChannelValue(formData.channel),
         image, 
         usageCount: formData.usageCount || 0,
@@ -406,7 +426,11 @@ const AddItemModal: React.FC<Props> = ({
                     <input 
                         type="number"
                         value={formData.price}
-                        onChange={e => setFormData({...formData, price: parseFloat(e.target.value)})}
+                        onChange={e => {
+                          const nextPrice = parseFloat(e.target.value) || 0;
+                          const qty = Number(formData.quantity || 1);
+                          setFormData({ ...formData, price: nextPrice, avgPrice: computeAvgPrice(nextPrice, qty) });
+                        }}
                         className="w-full p-4 pl-8 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border-none shadow-sm"
                     />
                 </div>
@@ -421,6 +445,37 @@ const AddItemModal: React.FC<Props> = ({
                         onChange={e => setFormData({...formData, msrp: parseFloat(e.target.value)})}
                         className="w-full p-4 pl-8 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border-none shadow-sm"
                     />
+                </div>
+              </div>
+            </div>
+
+            {/* Quantity & Avg Price */}
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.quantity[language]}</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={formData.quantity}
+                  onChange={e => {
+                    const nextQuantity = Math.max(1, Math.floor(parseFloat(e.target.value) || 1));
+                    const price = Number(formData.price || 0);
+                    setFormData({ ...formData, quantity: nextQuantity, avgPrice: computeAvgPrice(price, nextQuantity) });
+                  }}
+                  className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border-none shadow-sm"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.avgPrice[language]}</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-4 text-gray-400">{currencySymbol}</span>
+                  <input
+                    type="number"
+                    value={formData.avgPrice}
+                    readOnly
+                    className="w-full p-4 pl-8 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border-none shadow-sm opacity-80"
+                  />
                 </div>
               </div>
             </div>
@@ -628,6 +683,17 @@ const AddItemModal: React.FC<Props> = ({
                         </button>
                     )}
                  </div>
+            </div>
+
+            {/* Store Name */}
+            <div>
+              <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.storeName[language]}</label>
+              <input
+                value={formData.storeName || ''}
+                onChange={e => setFormData({ ...formData, storeName: e.target.value })}
+                className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border-none shadow-sm placeholder-gray-400 dark:placeholder-slate-500"
+                placeholder={TEXTS.storeNamePlaceholder[language]}
+              />
             </div>
 
              {/* Link */}

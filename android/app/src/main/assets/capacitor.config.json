@@ -1,5 +1,5 @@
 {
-	"appId": "com.example.app",
+	"appId": "com.Tracker.app",
 	"appName": "Tracker",
 	"webDir": "dist",
 	"plugins": {
