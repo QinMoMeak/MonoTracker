@@ -1,26 +1,47 @@
-﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Capacitor, registerPlugin } from '@capacitor/core';
+﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import * as echarts from 'echarts';
+import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { SplashScreen } from '@capacitor/splash-screen';
-import { AiConfig, AiCredentials, AiProvider, AiRuntimeConfig, Item, Language, ThemeColor, Tab, AppearanceMode } from './types';
+import { AiConfig, AiCredentials, AiProvider, AiRuntimeConfig, Item, Language, ThemeColor, Tab, AppearanceMode, WebDavConfig } from './types';
 import { THEMES, TEXTS, ICONS, INITIAL_ITEMS, CATEGORY_CONFIG, DEFAULT_CHANNELS, DEFAULT_STATUSES } from './constants';
 import { loadState, saveState, exportCSV } from './services/storageService';
 import { buildExportZip, importBackupFile } from './services/backupService';
+import { deleteWebDav, downloadWebDav, existsWebDav, uploadWebDav } from './services/webdavService';
 import { AI_PROVIDERS, getModelMeta, getProviderMeta, getProviderModels } from './services/aiProviders';
 import Timeline from './components/Timeline';
 import AddItemModal from './components/AddItemModal';
 import Dialog from './components/Dialog';
 import SheetModal from './components/SheetModal';
 
-// Define the custom Export Plugin interface
-interface ExportPluginInterface {
-  exportData(options: { content: string, fileName: string, mimeType: string }): Promise<{ uri: string }>;
-}
+const compressValue = (value: number) => {
+  const safe = Number.isFinite(value) ? value : 0;
+  const clamped = Math.max(0, safe);
+  return Math.log10(clamped + 1);
+};
 
-// Register the plugin (assumes it is implemented on the native side)
-const ExportPlugin = registerPlugin<ExportPluginInterface>('ExportPlugin');
+const smoothVisualValues = (values: number[], tension = 0.22) => {
+  if (values.length <= 2) return values.slice();
+  const nextValues = values.slice();
+  for (let i = 1; i < values.length - 1; i++) {
+    const prev = values[i - 1];
+    const current = values[i];
+    const next = values[i + 1];
+    const isBetween = (current - prev) * (current - next) <= 0;
+    if (!isBetween) {
+      nextValues[i] = current;
+      continue;
+    }
+    const target = (prev + next) / 2;
+    const blended = current * (1 - tension) + target * tension;
+    const min = Math.min(prev, next);
+    const max = Math.max(prev, next);
+    nextValues[i] = Math.min(max, Math.max(min, blended));
+  }
+  return nextValues;
+};
 
 const App: React.FC = () => {
   // --- State ---
@@ -36,6 +57,7 @@ const App: React.FC = () => {
   const [aiConfig, setAiConfig] = useState<AiConfig>({ provider: 'disabled', model: '', credentials: {} });
   const [showAiSettingsModal, setShowAiSettingsModal] = useState(false);
   const [showDataManageModal, setShowDataManageModal] = useState(false);
+  const [showWebdavModal, setShowWebdavModal] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ src: string; name?: string } | null>(null);
   
   // Export Modal State
@@ -56,6 +78,17 @@ const App: React.FC = () => {
   const [categories, setCategories] = useState<string[]>(Object.keys(CATEGORY_CONFIG));
   const [statuses, setStatuses] = useState<string[]>(DEFAULT_STATUSES);
   const [channels, setChannels] = useState<string[]>(DEFAULT_CHANNELS);
+  const [webdavConfig, setWebdavConfig] = useState<WebDavConfig>({
+    serverUrl: 'https://dav.jianguoyun.com/dav/',
+    username: '',
+    password: ''
+  });
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
+  const [webdavIncludeImages, setWebdavIncludeImages] = useState(false);
+  const [lastBackupLocalDate, setLastBackupLocalDate] = useState('');
+  const [webdavHistory, setWebdavHistory] = useState<WebDavManifestEntry[]>([]);
+  const [webdavHistoryLoading, setWebdavHistoryLoading] = useState(false);
+  const [selectedWebdavBackupId, setSelectedWebdavBackupId] = useState('');
 
   type DialogState = {
     type: 'alert' | 'confirm' | 'prompt';
@@ -75,6 +108,233 @@ const App: React.FC = () => {
     Array.from(new Set(values.map(v => v.trim()).filter(Boolean)));
 
   const currencySymbol = '\u00a5';
+
+  const t = (key: string, fallback: string = key) =>
+    (TEXTS as any)?.[key]?.[language]
+    ?? (TEXTS as any)?.[key]?.['zh-CN']
+    ?? (TEXTS as any)?.[key]?.['en']
+    ?? fallback;
+
+  const WEBDAV_BACKUP_ROOT = 'TrackerBackups';
+  const WEBDAV_SNAPSHOTS_DIR = `${WEBDAV_BACKUP_ROOT}/snapshots`;
+  const WEBDAV_STAGING_DIR = `${WEBDAV_BACKUP_ROOT}/staging`;
+  const WEBDAV_MANIFEST = `${WEBDAV_BACKUP_ROOT}/manifest.json`;
+  const WEBDAV_MANIFEST_TMP = `${WEBDAV_BACKUP_ROOT}/manifest.json.tmp`;
+
+  type WebDavManifestEntry = {
+    id: string;
+    zipPath: string;
+    readyPath: string;
+    sha256: string;
+    size: number;
+    createdAt: string;
+  };
+
+  type WebDavManifest = {
+    schemaVersion: 1;
+    history: WebDavManifestEntry[];
+  };
+
+  const buildBackupId = () => {
+    const iso = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    return iso.replace(/:/g, '-');
+  };
+
+  const sha256Blob = async (blob: Blob) => {
+    if (!globalThis.crypto?.subtle?.digest) return '';
+    const buffer = await blob.arrayBuffer();
+    const hash = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(hash))
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('');
+  };
+
+  const getLocalDateKey = () => {
+    const now = new Date();
+    const y = String(now.getFullYear());
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const normalizeManifestHistory = (entries: WebDavManifestEntry[]) => {
+    const seen = new Set<string>();
+    return entries
+      .filter(Boolean)
+      .filter(entry => {
+        if (!entry?.id || !entry?.zipPath || !entry?.readyPath) return false;
+        if (seen.has(entry.id)) return false;
+        seen.add(entry.id);
+        return true;
+      });
+  };
+
+  const normalizeManifest = (raw: any): WebDavManifest | null => {
+    if (!raw || raw.schemaVersion !== 1) return null;
+    if (Array.isArray(raw.history)) {
+      return { schemaVersion: 1, history: normalizeManifestHistory(raw.history) };
+    }
+    const legacyHistory = [raw.current, raw.previous].filter(Boolean);
+    if (legacyHistory.length) {
+      return { schemaVersion: 1, history: normalizeManifestHistory(legacyHistory) };
+    }
+    return { schemaVersion: 1, history: [] };
+  };
+
+  const readWebDavManifest = async (config: WebDavConfig): Promise<WebDavManifest | null> => {
+    try {
+      const blob = await downloadWebDav(config, WEBDAV_MANIFEST);
+      const raw = await blob.text();
+      const parsed = JSON.parse(raw);
+      return normalizeManifest(parsed);
+    } catch {
+      return null;
+    }
+  };
+
+  const writeWebDavManifest = async (config: WebDavConfig, manifest: WebDavManifest) => {
+    const content = JSON.stringify(manifest, null, 2);
+    const blob = new Blob([content], { type: 'application/json' });
+    try {
+      await uploadWebDav(config, WEBDAV_MANIFEST_TMP, blob);
+    } catch (e) {
+      console.warn('WebDAV manifest tmp upload failed:', e);
+    }
+    await uploadWebDav(config, WEBDAV_MANIFEST, blob);
+  };
+
+  const createSnapshotEntry = async (zipBlob: Blob, id: string): Promise<WebDavManifestEntry> => {
+    const zipName = `${id}_full.zip`;
+    const zipPath = `${WEBDAV_SNAPSHOTS_DIR}/${zipName}`;
+    const readyPath = `${WEBDAV_SNAPSHOTS_DIR}/${zipName}.ready`;
+    const sha256 = await sha256Blob(zipBlob);
+    return {
+      id,
+      zipPath,
+      readyPath,
+      sha256,
+      size: zipBlob.size,
+      createdAt: new Date().toISOString()
+    };
+  };
+
+  const uploadSnapshot = async (config: WebDavConfig, entry: WebDavManifestEntry, zipBlob: Blob) => {
+    const zipName = entry.zipPath.split('/').pop() || `${entry.id}_full.zip`;
+    const partPath = `${WEBDAV_STAGING_DIR}/${zipName}.part`;
+    await uploadWebDav(config, partPath, zipBlob);
+    await uploadWebDav(config, entry.zipPath, zipBlob);
+    const readyBlob = new Blob(['ready'], { type: 'text/plain' });
+    await uploadWebDav(config, entry.readyPath, readyBlob);
+  };
+
+  const trimHistory = (history: WebDavManifestEntry[], limit: number) => ({
+    keep: history.slice(0, limit),
+    remove: history.slice(limit)
+  });
+
+  const cleanupSnapshots = async (config: WebDavConfig, entries: WebDavManifestEntry[]) => {
+    if (!entries.length) return;
+    await Promise.all(entries.map(async (entry) => {
+      await deleteWebDav(config, entry.zipPath).catch(e => console.warn('WebDAV delete zip failed:', e));
+      await deleteWebDav(config, entry.readyPath).catch(e => console.warn('WebDAV delete ready failed:', e));
+    }));
+  };
+
+  const commitSnapshot = async (config: WebDavConfig, entry: WebDavManifestEntry, zipBlob: Blob) => {
+    await uploadSnapshot(config, entry, zipBlob);
+    const manifest = await readWebDavManifest(config);
+    const merged = normalizeManifestHistory([entry, ...(manifest?.history || [])]);
+    const { keep, remove } = trimHistory(merged, 4);
+    await writeWebDavManifest(config, { schemaVersion: 1, history: keep });
+    await cleanupSnapshots(config, remove);
+    return keep;
+  };
+
+  const shouldCommitBackup = (dataCount: number) => dataCount > 0;
+
+  const tryRestoreSnapshot = async (config: WebDavConfig, entry?: WebDavManifestEntry) => {
+    if (!entry) return false;
+    try {
+      const ready = await existsWebDav(config, entry.readyPath);
+      if (!ready) return false;
+      const zipBlob = await downloadWebDav(config, entry.zipPath);
+      if (entry.size && zipBlob.size !== entry.size) {
+        throw new Error(`Backup size mismatch: ${zipBlob.size} != ${entry.size}`);
+      }
+      if (entry.sha256) {
+        const hash = await sha256Blob(zipBlob);
+        if (hash && hash !== entry.sha256) {
+          throw new Error('Backup hash mismatch');
+        }
+      }
+      const file = new File([zipBlob], entry.zipPath.split('/').pop() || 'backup.zip', { type: 'application/zip' });
+      const newItems = await importBackupFile(file);
+      setItems(prev => mergeImportedItems(prev, newItems));
+      return true;
+    } catch (e) {
+      console.warn('WebDAV restore failed:', e);
+      return false;
+    }
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+    const value = bytes / Math.pow(1024, index);
+    return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)} ${units[index]}`;
+  };
+
+  const formatBackupLabel = (entry: WebDavManifestEntry) => {
+    const parsed = entry.createdAt ? new Date(entry.createdAt) : null;
+    if (parsed && !Number.isNaN(parsed.getTime())) {
+      return parsed.toLocaleString();
+    }
+    return entry.id;
+  };
+
+  const fetchWebDavHistory = async (config: WebDavConfig) => {
+    const manifest = await readWebDavManifest(config);
+    const history = manifest?.history || [];
+    const readyChecks = await Promise.all(history.map(async (entry) => {
+      const ready = await existsWebDav(config, entry.readyPath).catch(() => false);
+      return ready ? entry : null;
+    }));
+    return readyChecks.filter(Boolean) as WebDavManifestEntry[];
+  };
+
+  const refreshWebDavHistory = async () => {
+    const { serverUrl, username, password } = webdavConfig;
+    if (!serverUrl.trim() || !username.trim() || !password.trim()) {
+      setWebdavHistory([]);
+      setSelectedWebdavBackupId('');
+      setWebdavHistoryLoading(false);
+      return [];
+    }
+    if (!Capacitor.isNativePlatform()) {
+      setWebdavHistory([]);
+      setSelectedWebdavBackupId('');
+      setWebdavHistoryLoading(false);
+      return [];
+    }
+    setWebdavHistoryLoading(true);
+    try {
+      const readyHistory = await fetchWebDavHistory(webdavConfig);
+      const display = readyHistory.slice(0, 3);
+      setWebdavHistory(display);
+      setSelectedWebdavBackupId(prev =>
+        display.some(entry => entry.id === prev) ? prev : (display[0]?.id || '')
+      );
+      return display;
+    } catch (e) {
+      console.warn('WebDAV history load failed:', e);
+      setWebdavHistory([]);
+      setSelectedWebdavBackupId('');
+      return [];
+    } finally {
+      setWebdavHistoryLoading(false);
+    }
+  };
 
   const formatNumber = (value: number, maximumFractionDigits = 2) => {
     if (!Number.isFinite(value)) return '0';
@@ -240,6 +500,24 @@ const App: React.FC = () => {
       setStatuses(initialStatuses);
       setChannels(initialChannels);
 
+      const initialWebdav = loaded.webdav && loaded.webdav.serverUrl
+        ? loaded.webdav
+        : { serverUrl: 'https://dav.jianguoyun.com/dav/', username: '', password: '' };
+      setWebdavConfig(initialWebdav);
+
+      const initialLastBackupDate = typeof (loaded as any).lastBackupLocalDate === 'string'
+        ? (loaded as any).lastBackupLocalDate
+        : '';
+      setLastBackupLocalDate(initialLastBackupDate);
+      if (typeof (loaded as any).autoBackupEnabled === 'boolean') {
+        setAutoBackupEnabled((loaded as any).autoBackupEnabled);
+      }
+
+      const initialWebdavIncludeImages = typeof (loaded as any).webdavIncludeImages === 'boolean'
+        ? (loaded as any).webdavIncludeImages
+        : false;
+      setWebdavIncludeImages(initialWebdavIncludeImages);
+
       const fallbackProvider: AiProvider = (loaded as any).showAiFab === false ? 'disabled' : 'gemini';
       setAiConfig(buildAiConfig(loaded.aiConfig || {}, fallbackProvider));
 
@@ -263,8 +541,8 @@ const App: React.FC = () => {
     // Prevent saving if we haven't loaded yet to avoid overwriting with initial empty state
     if (!isLoaded) return;
 
-    void saveState({ items, language, theme, appearance, aiConfig, categories, statuses, channels });
-  }, [items, language, theme, appearance, aiConfig, categories, statuses, channels, isLoaded]);
+    void saveState({ items, language, theme, appearance, aiConfig, categories, statuses, channels, webdav: webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages });
+  }, [items, language, theme, appearance, aiConfig, categories, statuses, channels, webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages, isLoaded]);
 
   const closeAddModal = () => {
     setIsAddModalOpen(false);
@@ -282,6 +560,15 @@ const App: React.FC = () => {
   const closeDataManageModal = () => {
     setShowDataManageModal(false);
   };
+
+  const closeWebdavModal = () => {
+    setShowWebdavModal(false);
+  };
+
+  useEffect(() => {
+    if (!showWebdavModal) return;
+    void refreshWebDavHistory();
+  }, [showWebdavModal]);
 
   const openImagePreview = useCallback((src: string, name?: string) => {
     if (!src) return;
@@ -317,16 +604,47 @@ const App: React.FC = () => {
       if (showDataManageModal) {
           closeDataManageModal();
       }
+      if (showWebdavModal) {
+          closeWebdavModal();
+      }
     };
 
-    if (previewImage || isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal) {
+    if (previewImage || isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal || showWebdavModal) {
       window.addEventListener('popstate', handlePopState);
     }
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal]);
+  }, [previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal, showWebdavModal]);
+
+  const autoBackupInFlight = useRef(false);
+
+  useEffect(() => {
+    if (!isLoaded || !autoBackupEnabled) return;
+    if (!Capacitor.isNativePlatform()) return;
+    const { serverUrl, username, password } = webdavConfig;
+    if (!serverUrl || !username || !password) return;
+    if (!shouldCommitBackup(items.length)) return;
+    const today = getLocalDateKey();
+    if (lastBackupLocalDate === today) return;
+    if (autoBackupInFlight.current) return;
+
+    autoBackupInFlight.current = true;
+    buildExportZip(items, undefined, webdavIncludeImages)
+      .then(async ({ blob }) => {
+        const id = buildBackupId();
+        const entry = await createSnapshotEntry(blob, id);
+        await commitSnapshot(webdavConfig, entry, blob);
+        setLastBackupLocalDate(today);
+        await refreshWebDavHistory();
+        setSelectedWebdavBackupId(entry.id);
+      })
+      .catch(err => console.error('Auto WebDAV backup failed', err))
+      .finally(() => {
+        autoBackupInFlight.current = false;
+      });
+  }, [isLoaded, autoBackupEnabled, webdavConfig, items, lastBackupLocalDate, webdavIncludeImages]);
 
   useEffect(() => {
     let backHandle: { remove: () => void } | undefined;
@@ -339,7 +657,7 @@ const App: React.FC = () => {
         window.history.back();
         return;
       }
-      if (isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal) {
+      if (isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal || showWebdavModal) {
         window.history.back();
         return;
       }
@@ -350,12 +668,14 @@ const App: React.FC = () => {
       }
     };
 
-    backHandle = CapacitorApp.addListener('backButton', handler);
+    CapacitorApp.addListener('backButton', handler).then(handle => {
+      backHandle = handle;
+    });
 
     return () => {
       backHandle?.remove();
     };
-  }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal]);
+  }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal, showWebdavModal]);
 
   useEffect(() => {
     const handleBackButton = (event: Event) => {
@@ -369,7 +689,7 @@ const App: React.FC = () => {
         window.history.back();
         return;
       }
-      if (isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal) {
+      if (isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal || showWebdavModal) {
         event.preventDefault();
         window.history.back();
       }
@@ -379,7 +699,7 @@ const App: React.FC = () => {
     return () => {
       document.removeEventListener('backbutton', handleBackButton);
     };
-  }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal]);
+  }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal, showWebdavModal]);
 
   // Reset filter on tab change
   useEffect(() => {
@@ -583,6 +903,15 @@ const App: React.FC = () => {
   };
 
   const handleCloseDataManage = () => {
+      window.history.back();
+  };
+
+  const handleOpenWebdav = () => {
+      setShowWebdavModal(true);
+      window.history.pushState(null, '', '');
+  };
+
+  const handleCloseWebdav = () => {
       window.history.back();
   };
 
@@ -887,18 +1216,45 @@ const App: React.FC = () => {
       try {
           await navigator.clipboard.writeText(exportData);
           await openAlert(TEXTS.copySuccess[language]);
-      } catch (e) {
+      } catch {
           await openAlert(TEXTS.copyFailed[language]);
       }
   };
+  const mergeImportedItems = (prev: Item[], incoming: Item[]) => {
+    const byId = new Map<string, Item>(prev.map(item => [item.id, item]));
+    const signature = (item: Item) => [
+      item.type,
+      item.name,
+      item.price,
+      item.purchaseDate,
+      item.channel,
+      item.category,
+      item.status
+    ].join('|');
+    const bySignature = new Map<string, string>(prev.map(item => [signature(item), item.id]));
 
-    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    incoming.forEach(raw => {
+      const normalized = normalizeItem(raw as Item);
+      const sig = signature(normalized);
+      const existingId = byId.has(normalized.id) ? normalized.id : bySignature.get(sig);
+      if (existingId && byId.has(existingId)) {
+        const current = byId.get(existingId)!;
+        byId.set(existingId, { ...current, ...normalized, id: existingId });
+      } else {
+        byId.set(normalized.id, normalized);
+        bySignature.set(sig, normalized.id);
+      }
+    });
+
+    return Array.from(byId.values());
+  };
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
       const newItems = await importBackupFile(file);
       setItems(prev => {
-        const byId = new Map(prev.map(item => [item.id, item]));
+        const byId = new Map<string, Item>(prev.map(item => [item.id, item]));
         const signature = (item: Item) => [
           item.type,
           item.name,
@@ -908,7 +1264,7 @@ const App: React.FC = () => {
           item.category,
           item.status
         ].join('|');
-        const bySignature = new Map(prev.map(item => [signature(item), item.id]));
+        const bySignature = new Map<string, string>(prev.map(item => [signature(item), item.id]));
 
         newItems.forEach(raw => {
           const normalized = normalizeItem(raw as Item);
@@ -932,8 +1288,63 @@ const App: React.FC = () => {
       e.target.value = '';
     }
   };
+  const handleWebDavUpload = async () => {
+    const { serverUrl, username, password } = webdavConfig;
+    if (!serverUrl.trim() || !username.trim() || !password.trim()) {
+      await openAlert(t('webdavMissing', 'WebDAV ?????'));
+      return;
+    }
 
+    try {
+      const csvContent = `﻿${exportCSV(items)}`;
+      const { blob } = await buildExportZip(items, csvContent, webdavIncludeImages);
+      if (!shouldCommitBackup(items.length)) {
+        await openAlert(t('webdavUploadFailed', 'WebDAV ????'));
+        return;
+      }
+      const id = buildBackupId();
+      const entry = await createSnapshotEntry(blob, id);
+      await commitSnapshot(webdavConfig, entry, blob);
+      setLastBackupLocalDate(getLocalDateKey());
+      await refreshWebDavHistory();
+      setSelectedWebdavBackupId(entry.id);
+      await openAlert(t('webdavUploadSuccess', 'WebDAV ????'));
+    } catch (e) {
+      console.warn('WebDAV upload failed:', e);
+      await openAlert(t('webdavUploadFailed', 'WebDAV ????'));
+    }
+  };
 
+  const handleWebDavDownload = async () => {
+    const { serverUrl, username, password } = webdavConfig;
+    if (!serverUrl.trim() || !username.trim() || !password.trim()) {
+      await openAlert(t('webdavMissing', 'WebDAV ?????'));
+      return;
+    }
+    try {
+      let history = webdavHistory;
+      if (!history.length) {
+        history = await refreshWebDavHistory();
+      }
+
+      const selected = history.find(entry => entry.id === selectedWebdavBackupId) || history[0];
+      if (!selected) {
+        await openAlert(t('webdavNoBackups', 'No backups available.'));
+        return;
+      }
+
+      const restored = await tryRestoreSnapshot(webdavConfig, selected);
+      if (restored) {
+        await openAlert(t('webdavDownloadSuccess', 'WebDAV ????'));
+        return;
+      }
+
+      await openAlert(t('webdavDownloadFailed', 'WebDAV ????'));
+    } catch (e) {
+      console.warn('WebDAV download failed:', e);
+      await openAlert(t('webdavDownloadFailed', 'WebDAV ????'));
+    }
+  };
   // --- Computed ---
   const themeColors = THEMES[theme];
   const aiEnabled = aiConfig.provider !== 'disabled';
@@ -1079,7 +1490,8 @@ const App: React.FC = () => {
     };
     
     ownedItems.forEach(i => {
-        const pDate = new Date(i.purchaseDate).getTime();
+        const raw = new Date(i.purchaseDate).getTime();
+        const pDate = Number.isFinite(raw) ? raw : now;
         const days = (now - pDate) / dayMs;
         if (days < 30) durationBuckets['<1M']++;
         else if (days < 180) durationBuckets['1-6M']++;
@@ -1096,7 +1508,8 @@ const App: React.FC = () => {
     ownedItems.forEach(item => {
       if (!item.purchaseDate) return;
       const monthKey = item.purchaseDate.slice(0, 7);
-      monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + item.price);
+      const amount = toNumber(item.price);
+      monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + amount);
     });
     const monthlySpend = Array.from(monthMap.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
@@ -1120,12 +1533,119 @@ const App: React.FC = () => {
       .sort((a, b) => b.value - a.value);
 
     return { totalCount, totalVal, catStatsByValue, catStatsByCount, statusStats, durationBuckets, timelineData, monthlySpend, channelStats };
-  }, [ownedItems, categories, normalizeChannelValue, language]);
+  }, [ownedItems, categories, normalizeChannelValue]);
 
-  const monthlySpendMax = useMemo(
-    () => stats.monthlySpend.reduce((acc, curr) => Math.max(acc, curr.value), 1),
+  const monthlySpendTotal = useMemo(
+    () => stats.monthlySpend.reduce((acc, curr) => acc + (Number.isFinite(curr.value) ? curr.value : 0), 0),
     [stats.monthlySpend]
   );
+
+  const chartHeightPx = 128;
+  const durationLabels = useMemo(() => ['<1M', '1-6M', '6-12M', '1-3Y', '>3Y'], []);
+
+  const durationTotal = useMemo(
+    () => Object.values(stats.durationBuckets as Record<string, number>)
+      .reduce((acc, v) => acc + (Number.isFinite(v) ? v : 0), 0),
+    [stats.durationBuckets]
+  );
+
+  const monthlyTrendLabels = useMemo(() => stats.monthlySpend.map(item => item.month), [stats.monthlySpend]);
+  const monthlyTrendValues = useMemo(() => stats.monthlySpend.map(item => toNumber(item.value)), [stats.monthlySpend]);
+  const durationValues = useMemo(
+    () => durationLabels.map(label => toNumber((stats.durationBuckets as Record<string, number>)[label] ?? 0)),
+    [durationLabels, stats.durationBuckets]
+  );
+
+  const TrendLineChart: React.FC<{
+    labels: string[];
+    values: number[];
+    height: number;
+    themeColorClass: string;
+  }> = ({ labels, values, height, themeColorClass }) => {
+    const chartRef = useRef<HTMLDivElement | null>(null);
+    const instanceRef = useRef<echarts.ECharts | null>(null);
+    const resizeObserverRef = useRef<ResizeObserver | null>(null);
+
+    const visualValues = useMemo(() => {
+      const safeValues = values.map(value => (Number.isFinite(value) ? value : 0));
+      const compressedValues = safeValues.map(compressValue);
+      return smoothVisualValues(compressedValues, 0.22);
+    }, [values]);
+
+    const handleResize = useCallback(() => {
+      instanceRef.current?.resize();
+    }, []);
+
+    useEffect(() => {
+      if (!chartRef.current || instanceRef.current) return;
+      const instance = echarts.init(chartRef.current, undefined, { renderer: 'canvas' });
+      instanceRef.current = instance;
+      const observer = new ResizeObserver(() => instanceRef.current?.resize());
+      observer.observe(chartRef.current);
+      resizeObserverRef.current = observer;
+      window.addEventListener('resize', handleResize);
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        resizeObserverRef.current?.disconnect();
+        resizeObserverRef.current = null;
+        instanceRef.current?.dispose();
+        instanceRef.current = null;
+      };
+    }, [handleResize]);
+
+    useEffect(() => {
+      if (!chartRef.current || !instanceRef.current) return;
+      const computedColor = window.getComputedStyle(chartRef.current).color;
+      const option = {
+        animation: true,
+        grid: { left: 6, right: 6, top: 6, bottom: 0, containLabel: false },
+        xAxis: {
+          type: 'category',
+          boundaryGap: false,
+          data: labels,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { show: false },
+          splitLine: { show: false }
+        },
+        yAxis: {
+          type: 'value',
+          min: (value: { min: number; max: number }) => {
+            const range = value.max - value.min;
+            return Math.max(0, value.min - range * 0.25);
+          },
+          max: (value: { min: number; max: number }) => value.max * 1.05,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { show: false },
+          splitLine: { show: false }
+        },
+        series: [
+          {
+            type: 'line',
+            data: visualValues,
+            smooth: 0.6,
+            smoothMonotone: 'x',
+            cubicInterpolationMode: 'monotone',
+            symbol: 'none',
+            showSymbol: false,
+            lineStyle: {
+              width: 3,
+              color: computedColor,
+              cap: 'round',
+              join: 'round'
+            },
+            itemStyle: { color: computedColor },
+            areaStyle: { color: computedColor, opacity: 0.12 }
+          }
+        ]
+      };
+      instanceRef.current.setOption(option, { notMerge: true, lazyUpdate: true });
+      instanceRef.current.resize();
+    }, [labels, visualValues, themeColorClass, height]);
+
+    return <div ref={chartRef} className={`w-full ${themeColorClass}`} style={{ height: `${height}px` }} />;
+  };
 
   // Helper for localized status label
   const getStatusLabel = (s: string) => {
@@ -1202,23 +1722,36 @@ const App: React.FC = () => {
                  <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
                      <ICONS.BarChart2 size={16}/> {TEXTS.statsMonthlyTrend[language]}
                  </h3>
-                 <div className="flex items-end justify-between h-32 gap-2">
-                     {stats.monthlySpend.map(({ month, value }) => {
-                         const height = (value / monthlySpendMax) * 100;
-                         return (
-                             <div key={month} className="flex flex-col items-center flex-1 group">
-                                 <div className="relative w-full bg-gray-100 dark:bg-slate-800 rounded-t-lg overflow-hidden flex items-end justify-center h-full">
-                                     <div 
-                                        className={`w-full transition-all duration-500 ${themeColors.primary}`} 
-                                        style={{ height: `${height}%`, opacity: value > 0 ? 0.8 : 0.1 }} 
-                                     />
-                                     <span className="absolute bottom-1 text-[10px] font-bold text-gray-500 dark:text-gray-300">{currencySymbol}{formatNumber(value, 0)}</span>
-                                 </div>
-                                 <span className="text-[10px] mt-2 text-gray-400 font-medium whitespace-nowrap">{month}</span>
+                 <div className="space-y-3">
+                     {monthlySpendTotal <= 0 && (
+                       <p className="text-xs opacity-40">{TEXTS.noData[language]}</p>
+                     )}
+                     {monthlySpendTotal > 0 && stats.monthlySpend.length > 0 && (
+                       <>
+                         <TrendLineChart
+                           labels={monthlyTrendLabels}
+                           values={monthlyTrendValues}
+                           height={chartHeightPx}
+                           themeColorClass={themeColors.secondary}
+                         />
+                         <div
+                           className="grid gap-1 text-center"
+                           style={{ gridTemplateColumns: `repeat(${stats.monthlySpend.length}, minmax(0, 1fr))` }}
+                         >
+                           {stats.monthlySpend.map(({ month, value }) => (
+                             <div key={month} className="text-[10px] text-gray-400 font-medium">
+                               <div className="text-[10px] text-gray-500 dark:text-gray-300">
+                                 {currencySymbol}{formatNumber(toNumber(value), 0)}
+                               </div>
+                               <div className="mt-1">{month}</div>
                              </div>
-                         );
-                     })}
-                     {stats.monthlySpend.length === 0 && <p className="text-xs opacity-40">{TEXTS.none[language]}</p>}
+                           ))}
+                         </div>
+                       </>
+                     )}
+                     {monthlySpendTotal > 0 && stats.monthlySpend.length === 0 && (
+                       <p className="text-xs opacity-40">{TEXTS.none[language]}</p>
+                     )}
                  </div>
              </div>
 
@@ -1248,24 +1781,36 @@ const App: React.FC = () => {
                  <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
                      <ICONS.Clock size={16}/> {TEXTS.statsDuration[language]}
                  </h3>
-                 <div className="flex items-end justify-between h-32 gap-2">
-                     {Object.entries(stats.durationBuckets).map(([label, count]) => {
-                         const numericCount = count as number;
-                         const max = Math.max(...(Object.values(stats.durationBuckets) as number[])) || 1;
-                         const height = (numericCount / max) * 100;
-                         return (
-                             <div key={label} className="flex flex-col items-center flex-1 group">
-                                 <div className="relative w-full bg-gray-100 dark:bg-slate-800 rounded-t-lg overflow-hidden flex items-end justify-center h-full">
-                                     <div 
-                                        className={`w-full transition-all duration-500 ${themeColors.primary}`} 
-                                        style={{ height: `${height}%`, opacity: numericCount > 0 ? 0.8 : 0.1 }} 
-                                     />
-                                     <span className="absolute bottom-1 text-[10px] font-bold text-gray-500 dark:text-gray-300">{numericCount}</span>
+                 <div className="space-y-3">
+                     {durationTotal <= 0 && (
+                       <p className="text-xs opacity-40">{TEXTS.noData[language]}</p>
+                     )}
+                     {durationTotal > 0 && (
+                       <>
+                         <TrendLineChart
+                           labels={durationLabels}
+                           values={durationValues}
+                           height={chartHeightPx}
+                           themeColorClass={themeColors.secondary}
+                         />
+                         <div
+                           className="grid gap-1 text-center"
+                           style={{ gridTemplateColumns: `repeat(${durationLabels.length}, minmax(0, 1fr))` }}
+                         >
+                           {durationLabels.map(label => {
+                             const value = toNumber((stats.durationBuckets as Record<string, number>)[label] ?? 0);
+                             return (
+                               <div key={label} className="text-[10px] text-gray-400 font-medium">
+                                 <div className="text-[10px] text-gray-500 dark:text-gray-300">
+                                   {formatNumber(value, 0)}
                                  </div>
-                                 <span className="text-[10px] mt-2 text-gray-400 font-medium whitespace-nowrap">{label}</span>
-                             </div>
-                         );
-                     })}
+                                 <div className="mt-1">{label}</div>
+                               </div>
+                             );
+                           })}
+                         </div>
+                       </>
+                     )}
                  </div>
              </div>
 
@@ -1381,7 +1926,7 @@ const App: React.FC = () => {
                      <ICONS.TrendingUp size={16}/> {TEXTS.statsTimeline[language]}
                  </h3>
                  <div className="space-y-0 relative border-l-2 border-gray-100 dark:border-slate-800 ml-2">
-                     {stats.timelineData.slice(0, 10).map((item, idx) => ( // Show last 10 activities
+                    {stats.timelineData.slice(0, 10).map((item) => ( // Show last 10 activities
                          <div key={item.id} className="mb-6 ml-4 relative">
                              <div className={`absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 ${themeColors.primary}`}></div>
                              <div className="flex justify-between items-start">
@@ -1421,6 +1966,15 @@ const App: React.FC = () => {
             >
               <span className="flex items-center gap-3 font-semibold">
                 <ICONS.Database size={20}/> {TEXTS.manageData[language]}
+              </span>
+              <ICONS.ChevronRight size={18} className="opacity-40" />
+            </button>
+            <button
+              onClick={handleOpenWebdav}
+              className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800"
+            >
+              <span className="flex items-center gap-3 font-semibold">
+                <ICONS.Database size={20}/> {TEXTS.webdavTitle[language]}
               </span>
               <ICONS.ChevronRight size={18} className="opacity-40" />
             </button>
@@ -1485,6 +2039,7 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
+
 
           <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm space-y-4 transition-colors">
              <button onClick={handleOpenExportModal} className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800">
@@ -1699,6 +2254,125 @@ const App: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      </SheetModal>
+
+      <SheetModal
+        isOpen={showWebdavModal}
+        title={TEXTS.webdavTitle[language]}
+        theme={theme}
+        onClose={handleCloseWebdav}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.webdavServer[language]}</label>
+            <input
+              type="text"
+              value={webdavConfig.serverUrl}
+              onChange={(e) => setWebdavConfig(prev => ({ ...prev, serverUrl: e.target.value }))}
+              className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+              style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.webdavUser[language]}</label>
+            <input
+              type="text"
+              value={webdavConfig.username}
+              onChange={(e) => setWebdavConfig(prev => ({ ...prev, username: e.target.value }))}
+              className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+              style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.webdavPass[language]}</label>
+            <input
+              type="password"
+              value={webdavConfig.password}
+              onChange={(e) => setWebdavConfig(prev => ({ ...prev, password: e.target.value }))}
+              className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+              style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
+            />
+          </div>
+          <div className="flex items-center justify-between bg-gray-50 dark:bg-slate-800/50 rounded-2xl px-4 py-3">
+            <div>
+              <div className="text-sm font-semibold">{TEXTS.webdavAutoBackup[language]}</div>
+              <div className="text-xs text-gray-400">{TEXTS.webdavAutoBackupHint[language]}</div>
+            </div>
+            <button
+              onClick={() => setAutoBackupEnabled(prev => !prev)}
+              className={`w-12 h-7 rounded-full transition-colors flex items-center ${autoBackupEnabled ? themeColors.primary : 'bg-gray-300 dark:bg-slate-700'}`}
+            >
+              <span className={`block w-5 h-5 bg-white rounded-full transition-transform ${autoBackupEnabled ? 'translate-x-6' : 'translate-x-1'}`}></span>
+            </button>
+          </div>
+          <div className="flex items-center justify-between bg-gray-50 dark:bg-slate-800/50 rounded-2xl px-4 py-3">
+            <div>
+              <div className="text-sm font-semibold">{TEXTS.webdavIncludeImages[language]}</div>
+              <div className="text-xs text-gray-400">{TEXTS.webdavIncludeImagesHint[language]}</div>
+            </div>
+            <button
+              onClick={() => setWebdavIncludeImages(prev => !prev)}
+              className={`w-12 h-7 rounded-full transition-colors flex items-center ${webdavIncludeImages ? themeColors.primary : 'bg-gray-300 dark:bg-slate-700'}`}
+            >
+              <span className={`block w-5 h-5 bg-white rounded-full transition-transform ${webdavIncludeImages ? 'translate-x-6' : 'translate-x-1'}`}></span>
+            </button>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.webdavRecentBackups[language]}</label>
+              <button
+                type="button"
+                onClick={() => void refreshWebDavHistory()}
+                className="text-xs font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                {TEXTS.webdavRefresh[language]}
+              </button>
+            </div>
+            {webdavHistoryLoading ? (
+              <div className="text-xs text-gray-400 px-2">{TEXTS.webdavLoadingBackups[language]}</div>
+            ) : webdavHistory.length === 0 ? (
+              <div className="text-xs text-gray-400 px-2">{TEXTS.webdavNoBackups[language]}</div>
+            ) : (
+              <div className="space-y-2">
+                {webdavHistory.map(entry => {
+                  const selected = entry.id === selectedWebdavBackupId;
+                  const sizeLabel = formatBytes(entry.size);
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => setSelectedWebdavBackupId(entry.id)}
+                      className={`w-full text-left p-3 rounded-2xl border transition-colors ${
+                        selected
+                          ? `${themeColors.primary} text-white border-transparent`
+                          : 'bg-gray-50 dark:bg-slate-800/50 text-gray-700 dark:text-gray-200 border-gray-100 dark:border-slate-700'
+                      }`}
+                    >
+                      <div className="text-sm font-semibold">{formatBackupLabel(entry)}</div>
+                      <div className={`text-xs ${selected ? 'text-white/80' : 'text-gray-400'}`}>
+                        {entry.id}{sizeLabel ? ` | ${sizeLabel}` : ''}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={handleWebDavUpload}
+              className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 font-semibold"
+            >
+              <ICONS.Upload size={18}/> {TEXTS.webdavUpload[language]}
+            </button>
+            <button
+              onClick={handleWebDavDownload}
+              className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 font-semibold"
+            >
+              <ICONS.Download size={18}/> {TEXTS.webdavDownload[language]}
+            </button>
           </div>
         </div>
       </SheetModal>
@@ -1960,6 +2634,15 @@ const App: React.FC = () => {
 };
 
 export default App;
+
+
+
+
+
+
+
+
+
 
 
 

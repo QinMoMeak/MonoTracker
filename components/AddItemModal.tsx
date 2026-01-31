@@ -206,7 +206,7 @@ const AddItemModal: React.FC<Props> = ({
         });
       });
       setMode('manual'); 
-    } catch (error) {
+    } catch {
       await onAlert(TEXTS.aiAnalyzeFailed[language]);
     } finally {
       setLoading(false);

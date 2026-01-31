@@ -1,5 +1,5 @@
 ﻿
-import { Translations, ThemeColor, Language, CategoryType } from './types';
+import { Translations, ThemeColor } from './types';
 import { 
   Home, 
   Heart, 
@@ -136,6 +136,31 @@ export const TEXTS: Translations = {
   import: { 'zh-CN': '导入数据', 'zh-TW': '匯入數據', 'en': 'Import CSV', 'ja': 'データをインポート' },
   importFailed: { 'zh-CN': '导入失败，请检查文件', 'zh-TW': '匯入失敗，請檢查檔案', 'en': 'Import failed. Please check the file.', 'ja': 'インポートに失敗しました。ファイルを確認してください。' },
   export: { 'zh-CN': '导出数据', 'zh-TW': '匯出數據', 'en': 'Export CSV', 'ja': 'データをエクスポート' },
+  webdavTitle: { 'zh-CN': 'WebDAV 网盘', 'zh-TW': 'WebDAV 網盤', 'en': 'WebDAV Storage', 'ja': 'WebDAVストレージ' },
+  webdavServer: { 'zh-CN': '服务器地址', 'zh-TW': '伺服器位址', 'en': 'Server URL', 'ja': 'サーバーURL' },
+  webdavUser: { 'zh-CN': '账户', 'zh-TW': '帳戶', 'en': 'Account', 'ja': 'アカウント' },
+  webdavPass: { 'zh-CN': '密码', 'zh-TW': '密碼', 'en': 'Password', 'ja': 'パスワード' },
+  webdavFilename: { 'zh-CN': '文件名', 'zh-TW': '檔名', 'en': 'Filename', 'ja': 'ファイル名' },
+  webdavAutoBackup: { 'zh-CN': '自动备份', 'zh-TW': '自動備份', 'en': 'Auto Backup', 'ja': '自動バックアップ' },
+  webdavAutoBackupHint: { 'zh-CN': '每天首次打开时自动备份', 'zh-TW': '每天首次開啟時自動備份', 'en': 'Backup on first open each day', 'ja': '毎日最初の起動時に自動バックアップ' },
+  webdavIncludeImages: { 'zh-CN': '包含图片', 'zh-TW': '包含圖片', 'en': 'Include images', 'ja': '画像を含める' },
+  webdavIncludeImagesHint: { 'zh-CN': '关闭可减少上传体积', 'zh-TW': '關閉可減少上傳體積', 'en': 'Turn off to reduce upload size', 'ja': 'オフにするとアップロードサイズを減らせます' },
+  webdavRecentBackups: { 'zh-CN': '最近备份（最多 3 条）', 'zh-TW': '最近備份（最多 3 條）', 'en': 'Recent backups (up to 3)', 'ja': '最近のバックアップ（最大3件）' },
+  webdavRefresh: { 'zh-CN': '刷新', 'zh-TW': '重新整理', 'en': 'Refresh', 'ja': '更新' },
+  webdavLoadingBackups: { 'zh-CN': '正在读取备份列表...', 'zh-TW': '正在讀取備份列表...', 'en': 'Loading backups...', 'ja': 'バックアップを読み込み中...' },
+  webdavNoBackups: { 'zh-CN': '暂无可恢复备份', 'zh-TW': '暫無可恢復備份', 'en': 'No backups available.', 'ja': '復元できるバックアップがありません' },
+  webdavUpload: { 'zh-CN': '上传备份', 'zh-TW': '上傳備份', 'en': 'Upload Backup', 'ja': 'バックアップをアップロード' },
+  webdavDownload: { 'zh-CN': '下载备份', 'zh-TW': '下載備份', 'en': 'Download Backup', 'ja': 'バックアップをダウンロード' },
+  webdavMissing: { 'zh-CN': '请填写 WebDAV 地址、账户和密码', 'zh-TW': '請填寫 WebDAV 位址、帳戶和密碼', 'en': 'Please fill in WebDAV URL, account, and password.', 'ja': 'WebDAVのURL、アカウント、パスワードを入力してください' },
+  webdavUploadSuccess: { 'zh-CN': 'WebDAV 上传成功', 'zh-TW': 'WebDAV 上傳成功', 'en': 'WebDAV upload successful.', 'ja': 'WebDAVアップロード成功' },
+  webdavDownloadSuccess: { 'zh-CN': 'WebDAV 下载成功', 'zh-TW': 'WebDAV 下載成功', 'en': 'WebDAV download successful.', 'ja': 'WebDAVダウンロード成功' },
+  webdavUploadFailed: { 'zh-CN': 'WebDAV 上传失败', 'zh-TW': 'WebDAV 上傳失敗', 'en': 'WebDAV upload failed.', 'ja': 'WebDAVアップロード失敗' },
+  webdavDownloadFailed: { 'zh-CN': 'WebDAV 下载失败', 'zh-TW': 'WebDAV 下載失敗', 'en': 'WebDAV download failed.', 'ja': 'WebDAVダウンロード失敗' },
+  webdavAuthFailed: { 'zh-CN': '认证失败，请检查账户和密码', 'zh-TW': '驗證失敗，請檢查帳戶與密碼', 'en': 'Authentication failed. Check account and password.', 'ja': '認証に失敗しました。アカウントとパスワードを確認してください。' },
+  webdavNotFound: { 'zh-CN': '文件不存在，请检查文件名', 'zh-TW': '找不到檔案，請檢查檔名', 'en': 'File not found. Check the filename.', 'ja': 'ファイルが見つかりません。ファイル名を確認してください。' },
+  webdavConflict: { 'zh-CN': '路径冲突，请检查目录或文件名', 'zh-TW': '路徑衝突，請檢查目錄或檔名', 'en': 'Path conflict. Check folder or filename.', 'ja': 'パス競合です。フォルダやファイル名を確認してください。' },
+  webdavServerError: { 'zh-CN': '服务器错误，请稍后重试', 'zh-TW': '伺服器錯誤，請稍後再試', 'en': 'Server error. Please try again later.', 'ja': 'サーバーエラー。しばらくしてから再試行してください。' },
+  webdavNativeOnly: { 'zh-CN': 'WebDAV ???????????????? CORS ???', 'zh-TW': 'WebDAV ???? Android App ????????? CORS ???', 'en': 'WebDAV only works in the Android app. Browsers are blocked by CORS.', 'ja': 'WebDAV ? Android ??????????????????? CORS ?????????????' },
   theme: { 'zh-CN': '主题颜色', 'zh-TW': '主題顏色', 'en': 'Theme Color', 'ja': 'テーマカラー' },
   language: { 'zh-CN': '语言', 'zh-TW': '語言', 'en': 'Language', 'ja': '言語' },
   totalValue: { 'zh-CN': '总价值', 'zh-TW': '總價值', 'en': 'Total Value', 'ja': '総価値' },
@@ -256,6 +281,9 @@ export const TEXTS: Translations = {
 };
 
 export const INITIAL_ITEMS = [];
+
+
+
 
 
 

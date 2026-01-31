@@ -76,7 +76,7 @@ const normalizeItem = (raw: any): Item => {
   return item as Item;
 };
 
-export const buildExportZip = async (items: Item[], csvContent?: string): Promise<ExportZipResult> => {
+export const buildExportZip = async (items: Item[], csvContent?: string, includeImages = true): Promise<ExportZipResult> => {
   const zip = new JSZip();
   const csv = csvContent || `\ufeff${exportCSV(items)}`;
   zip.file(DATA_CSV, csv);
@@ -84,7 +84,7 @@ export const buildExportZip = async (items: Item[], csvContent?: string): Promis
   const exportItems: any[] = [];
   for (const item of items) {
     const { image, ...rest } = item;
-    if (image) {
+    if (includeImages && image) {
       const parsed = parseDataUrl(image);
       if (parsed) {
         const ext = MIME_TO_EXT[parsed.mime] || 'png';

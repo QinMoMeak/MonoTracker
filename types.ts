@@ -54,6 +54,12 @@ export interface Item {
   valueDisplay?: 'day' | 'use' | 'both'; // Control which value metrics to show
 }
 
+export interface WebDavConfig {
+  serverUrl: string;
+  username: string;
+  password: string;
+}
+
 export interface Translations {
   [key: string]: {
     [key in Language]: string;
@@ -68,7 +74,12 @@ export interface AppState {
   aiConfig: AiConfig;
   categories: string[];
   statuses: string[];
-  channels: string[];\n}
+  channels: string[];
+  webdav: WebDavConfig;
+  autoBackupEnabled: boolean;
+  lastBackupLocalDate?: string;
+  webdavIncludeImages?: boolean;
+}
 
 // File System Access API Types
 export interface FileSystemHandle {
@@ -104,6 +115,10 @@ declare global {
     Android?: AndroidInterface;
   }
 }
+
+
+
+
 
 
 
