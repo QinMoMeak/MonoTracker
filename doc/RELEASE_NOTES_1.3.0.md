@@ -1,4 +1,4 @@
-﻿# Tracker 1.3.0
+# Tracker 1.3.0
 
 ## 新增功能
 - 启动页：接入 SplashScreen，启动后自动隐藏

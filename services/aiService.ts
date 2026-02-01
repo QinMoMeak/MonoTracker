@@ -1,4 +1,4 @@
-﻿import { AiRuntimeConfig, Item } from "../types";
+import { AiRuntimeConfig, Item } from "../types";
 import { getProviderMeta } from "./aiProviders";
 
 type AnalyzeOptions = {

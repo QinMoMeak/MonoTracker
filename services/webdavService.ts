@@ -1,4 +1,4 @@
-﻿import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 interface NativeWebdavPlugin {
   upload(options: { serverUrl: string; username: string; password: string; filename: string; base64: string }): Promise<void>;

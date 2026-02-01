@@ -1,4 +1,4 @@
-﻿import { AiProvider } from "../types";
+import { AiProvider } from "../types";
 
 export type AiProviderType = "disabled" | "openai" | "anthropic" | "gemini";
 

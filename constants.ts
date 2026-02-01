@@ -1,4 +1,4 @@
-﻿
+
 import { Translations, ThemeColor } from './types';
 import { 
   Home, 
@@ -145,6 +145,12 @@ export const TEXTS: Translations = {
   webdavAutoBackupHint: { 'zh-CN': '每天首次打开时自动备份', 'zh-TW': '每天首次開啟時自動備份', 'en': 'Backup on first open each day', 'ja': '毎日最初の起動時に自動バックアップ' },
   webdavIncludeImages: { 'zh-CN': '包含图片', 'zh-TW': '包含圖片', 'en': 'Include images', 'ja': '画像を含める' },
   webdavIncludeImagesHint: { 'zh-CN': '关闭可减少上传体积', 'zh-TW': '關閉可減少上傳體積', 'en': 'Turn off to reduce upload size', 'ja': 'オフにするとアップロードサイズを減らせます' },
+  webdavRestoreMode: { 'zh-CN': '恢复方式', 'zh-TW': '還原方式', 'en': 'Restore mode', 'ja': '復元方法' },
+  webdavRestoreOverwrite: { 'zh-CN': '覆盖本地', 'zh-TW': '覆蓋本機', 'en': 'Overwrite', 'ja': '上書き' },
+  webdavRestoreMerge: { 'zh-CN': '合并到本地', 'zh-TW': '合併到本機', 'en': 'Merge', 'ja': '統合' },
+  webdavRestoreOverwriteHint: { 'zh-CN': '清空本地并替换为备份', 'zh-TW': '清空本機並以備份取代', 'en': 'Replace local data with backup', 'ja': 'ローカルを削除してバックアップで置換' },
+  webdavRestoreMergeHint: { 'zh-CN': '与本地记录合并', 'zh-TW': '與本機資料合併', 'en': 'Merge into local records', 'ja': 'ローカルの記録にマージ' },
+  webdavRestoreOverwriteConfirm: { 'zh-CN': '覆盖恢复会清空本地数据并替换为备份，是否继续？', 'zh-TW': '覆蓋還原會清空本機資料並以備份取代，是否繼續？', 'en': 'Overwrite will replace local data with the backup. Continue?', 'ja': '上書き復元はローカルデータを削除してバックアップで置き換えます。続行しますか？' },
   webdavRecentBackups: { 'zh-CN': '最近备份（最多 3 条）', 'zh-TW': '最近備份（最多 3 條）', 'en': 'Recent backups (up to 3)', 'ja': '最近のバックアップ（最大3件）' },
   webdavRefresh: { 'zh-CN': '刷新', 'zh-TW': '重新整理', 'en': 'Refresh', 'ja': '更新' },
   webdavLoadingBackups: { 'zh-CN': '正在读取备份列表...', 'zh-TW': '正在讀取備份列表...', 'en': 'Loading backups...', 'ja': 'バックアップを読み込み中...' },

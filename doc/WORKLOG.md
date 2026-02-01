@@ -13,14 +13,13 @@
 - 若你无法确认是否存在 BOM：默认执行一次“去 BOM 规范化”流程再继续。
 
 ## 当前版本
-- versionName：1.5.7
-- versionCode：26
+- versionName：1.5.8
+- versionCode：27
 
 ## 当前状态
-- 正在进行：README 与编码规范修复验证
+- 正在进行：WebDAV 恢复覆盖/合并开关与编码规范修复验证
 - 已完成：WebDAV 备份图片开关与体积优化、代码精简与性能优化、lint/tsc 清理、chunk 拆分与优化、debug APK 构建、README 功能与技术栈更新
 - 阻塞项：无
-
 ## 关键决策索引
 - Decision-001：WebDAV manifest 改为 history 列表，客户端仅展示 ready 且最多 3 条，云端保留 4 条，超出即清理 zip/ready
 - Decision-002：每日首次打开触发自动备份，成功提交后记录 lastBackupLocalDate（按本地日期）
@@ -36,10 +35,11 @@
 - Decision-012：Vite 使用 manualChunks 拆分大体积依赖
 - Decision-013：统计页拆分为懒加载组件，避免主包过大
 - Decision-014：ECharts 改为 core 按需引入，降低图表 chunk 体积
+- Decision-015：WebDAV 恢复支持覆盖/合并切换，默认合并以保持既有行为
 
 ## 构建记录
 - 最近一次构建：
-  - 版本号：1.5.7（versionCode 26）
+  - 版本号：1.5.8（versionCode 27）
   - APK 路径：android/app/build/outputs/apk/debug/app-debug.apk
   - 构建状态：成功
 
@@ -334,4 +334,37 @@
   - 构建结果：debug APK 构建成功，输出 android/app/build/outputs/apk/debug/app-debug.apk
   - 冲突与修正：Gradle 找不到 JDK 21，构建时设置 JAVA_HOME 指向 .jdk/jdk-21.0.9+10
   - Assumption：仅移除 BOM 不影响运行行为
+  - 下一步 TODO：无
+- 2026-02-01
+  - 本轮上下文：WebDAV 恢复新增“覆盖/合并”选择并统一去除 UTF-8 BOM，完成 debug APK 构建
+  - 关键决策：
+    - 恢复模式默认合并，覆盖需二次确认以避免误操作
+  - Changes：
+    - [MOD] App.tsx: 新增 WebDAV 恢复方式选择并支持覆盖/合并
+    - [MOD] constants.ts: 新增恢复方式相关文案（多语言）
+    - [MOD] types.ts: 增加 RestoreMode 与 webdavRestoreMode
+    - [MOD] package.json: 版本号更新至 1.5.8
+    - [MOD] android/app/build.gradle: 版本号提升至 1.5.8 / 27
+    - [MOD] doc/WORKLOG.md: 更新恢复方式与编码修复记录
+    - [MOD] App.tsx: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] capacitor.config.ts: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] constants.ts: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] eslint.config.cjs: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] types.ts: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] components/StatsTab.tsx: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] doc/index.html: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] doc/RELEASE_NOTES_1.2.0.md: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] doc/RELEASE_NOTES_1.3.0.md: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] doc/RELEASE_NOTES_1.4.0.md: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] doc/RELEASE_NOTES_1.5.0.md: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] doc/pages/ai-settings.html: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] doc/pages/home.html: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] doc/pages/stats.html: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] services/aiProviders.ts: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] services/aiService.ts: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] services/webdavService.ts: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+  - 多语言改动说明：新增 WebDAV 恢复方式文案，已覆盖 zh-CN/zh-TW/en/ja
+  - 构建结果：debug APK 构建成功，输出 android/app/build/outputs/apk/debug/app-debug.apk
+  - 冲突与修正：无
+  - Assumption：恢复默认合并以保持既有行为
   - 下一步 TODO：无

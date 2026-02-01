@@ -1,10 +1,10 @@
-﻿﻿﻿﻿﻿﻿import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { SplashScreen } from '@capacitor/splash-screen';
-import { AiConfig, AiCredentials, AiProvider, AiRuntimeConfig, Item, Language, ThemeColor, Tab, AppearanceMode, WebDavConfig } from './types';
+import { AiConfig, AiCredentials, AiProvider, AiRuntimeConfig, Item, Language, ThemeColor, Tab, AppearanceMode, WebDavConfig, RestoreMode } from './types';
 import { THEMES, TEXTS, ICONS, INITIAL_ITEMS, CATEGORY_CONFIG, DEFAULT_CHANNELS, DEFAULT_STATUSES } from './constants';
 import { loadState, saveState, exportCSV } from './services/storageService';
 import { buildExportZip, importBackupFile } from './services/backupService';
@@ -58,6 +58,7 @@ const App: React.FC = () => {
   });
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
   const [webdavIncludeImages, setWebdavIncludeImages] = useState(false);
+  const [webdavRestoreMode, setWebdavRestoreMode] = useState<RestoreMode>('merge');
   const [lastBackupLocalDate, setLastBackupLocalDate] = useState('');
   const [webdavHistory, setWebdavHistory] = useState<WebDavManifestEntry[]>([]);
   const [webdavHistoryLoading, setWebdavHistoryLoading] = useState(false);
@@ -225,7 +226,7 @@ const App: React.FC = () => {
 
   const shouldCommitBackup = (dataCount: number) => dataCount > 0;
 
-  const tryRestoreSnapshot = async (config: WebDavConfig, entry?: WebDavManifestEntry) => {
+  const tryRestoreSnapshot = async (config: WebDavConfig, entry: WebDavManifestEntry | undefined, mode: RestoreMode = 'merge') => {
     if (!entry) return false;
     try {
       const ready = await existsWebDav(config, entry.readyPath);
@@ -242,7 +243,12 @@ const App: React.FC = () => {
       }
       const file = new File([zipBlob], entry.zipPath.split('/').pop() || 'backup.zip', { type: 'application/zip' });
       const newItems = await importBackupFile(file);
-      setItems(prev => mergeImportedItems(prev, newItems));
+      if (mode === 'overwrite') {
+        const normalized = newItems.map(raw => normalizeItem(raw as Item));
+        setItems(normalized);
+      } else {
+        setItems(prev => mergeImportedItems(prev, newItems));
+      }
       return true;
     } catch (e) {
       console.warn('WebDAV restore failed:', e);
@@ -491,6 +497,11 @@ const App: React.FC = () => {
         : false;
       setWebdavIncludeImages(initialWebdavIncludeImages);
 
+      const initialWebdavRestoreMode = (loaded as any).webdavRestoreMode === 'overwrite'
+        ? 'overwrite'
+        : 'merge';
+      setWebdavRestoreMode(initialWebdavRestoreMode);
+
       const fallbackProvider: AiProvider = (loaded as any).showAiFab === false ? 'disabled' : 'gemini';
       setAiConfig(buildAiConfig(loaded.aiConfig || {}, fallbackProvider));
 
@@ -514,8 +525,8 @@ const App: React.FC = () => {
     // Prevent saving if we haven't loaded yet to avoid overwriting with initial empty state
     if (!isLoaded) return;
 
-    void saveState({ items, language, theme, appearance, aiConfig, categories, statuses, channels, webdav: webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages });
-  }, [items, language, theme, appearance, aiConfig, categories, statuses, channels, webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages, isLoaded]);
+    void saveState({ items, language, theme, appearance, aiConfig, categories, statuses, channels, webdav: webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages, webdavRestoreMode });
+  }, [items, language, theme, appearance, aiConfig, categories, statuses, channels, webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages, webdavRestoreMode, isLoaded]);
 
   const closeAddModal = () => {
     setIsAddModalOpen(false);
@@ -1306,7 +1317,13 @@ const App: React.FC = () => {
         return;
       }
 
-      const restored = await tryRestoreSnapshot(webdavConfig, selected);
+      const mode = webdavRestoreMode;
+      if (mode === 'overwrite') {
+        const confirmed = await openConfirm(TEXTS.webdavRestoreOverwriteConfirm[language]);
+        if (!confirmed) return;
+      }
+
+      const restored = await tryRestoreSnapshot(webdavConfig, selected, mode);
       if (restored) {
         await openAlert(t('webdavDownloadSuccess', 'WebDAV ????'));
         return;
@@ -1953,6 +1970,39 @@ const App: React.FC = () => {
             >
               <span className={`block w-5 h-5 bg-white rounded-full transition-transform ${webdavIncludeImages ? 'translate-x-6' : 'translate-x-1'}`}></span>
             </button>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.webdavRestoreMode[language]}</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setWebdavRestoreMode('overwrite')}
+                className={`w-full text-left p-3 rounded-2xl border transition-colors ${
+                  webdavRestoreMode === 'overwrite'
+                    ? `${themeColors.primary} text-white border-transparent`
+                    : 'bg-gray-50 dark:bg-slate-800/50 text-gray-700 dark:text-gray-200 border-gray-100 dark:border-slate-700'
+                }`}
+              >
+                <div className="text-sm font-semibold">{TEXTS.webdavRestoreOverwrite[language]}</div>
+                <div className={`text-[10px] ${webdavRestoreMode === 'overwrite' ? 'text-white/80' : 'text-gray-400'}`}>
+                  {TEXTS.webdavRestoreOverwriteHint[language]}
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setWebdavRestoreMode('merge')}
+                className={`w-full text-left p-3 rounded-2xl border transition-colors ${
+                  webdavRestoreMode === 'merge'
+                    ? `${themeColors.primary} text-white border-transparent`
+                    : 'bg-gray-50 dark:bg-slate-800/50 text-gray-700 dark:text-gray-200 border-gray-100 dark:border-slate-700'
+                }`}
+              >
+                <div className="text-sm font-semibold">{TEXTS.webdavRestoreMerge[language]}</div>
+                <div className={`text-[10px] ${webdavRestoreMode === 'merge' ? 'text-white/80' : 'text-gray-400'}`}>
+                  {TEXTS.webdavRestoreMergeHint[language]}
+                </div>
+              </button>
+            </div>
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">

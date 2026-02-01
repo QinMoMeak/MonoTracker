@@ -1,4 +1,4 @@
-﻿# RELEASE_NOTES_1.5.0
+# RELEASE_NOTES_1.5.0
 
 ## 1.4.0 之后的修改汇总
 

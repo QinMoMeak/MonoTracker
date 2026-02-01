@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import * as echarts from 'echarts/core';
 import type { ECharts } from 'echarts/core';
 import { LineChart } from 'echarts/charts';
