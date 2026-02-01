@@ -18,6 +18,28 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              react: ['react', 'react-dom'],
+              echarts: [
+                'echarts/core',
+                'echarts/charts',
+                'echarts/components',
+                'echarts/renderers'
+              ],
+              capacitor: [
+                '@capacitor/core',
+                '@capacitor/app',
+                '@capacitor/filesystem',
+                '@capacitor/share',
+                '@capacitor/splash-screen'
+              ]
+            }
+          }
+        }
       }
     };
 });

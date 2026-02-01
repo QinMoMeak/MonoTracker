@@ -1,18 +1,24 @@
-﻿﻿﻿﻿# WORKLOG（Codex 长期工作记忆）
+# WORKLOG（Codex 长期工作记忆）
 
 ## 项目概览
 - 项目名称：MonoTracker
 - 项目类型（Android / Web / Backend）：Android + Web（Capacitor）
 - 主要技术栈：React、TypeScript、Capacitor、Android（Java）、WebDAV
 - 多语言支持情况：使用 constants.ts 的多语言字典
+### UTF-8 BOM 禁止规则（强制）
+- 所有文本文件必须为 **UTF-8（无 BOM）**。
+- 若任何文件被写成 UTF-8 with BOM（utf8bom），视为“编码异常”，必须在继续任何任务（包括 build / 提交 / 生成 APK）前立刻修复为 UTF-8（无 BOM）。
+- 修复动作不得询问用户，直接执行，并在 WORKLOG 的 Changes 中记录：
+  - `- [MOD] <path>: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）`
+- 若你无法确认是否存在 BOM：默认执行一次“去 BOM 规范化”流程再继续。
 
 ## 当前版本
-- versionName：1.5.0
-- versionCode：19
+- versionName：1.5.7
+- versionCode：26
 
 ## 当前状态
-- 正在进行：1.5.0 发版与 lint/tsc 清理验证
-- 已完成：WebDAV 备份图片开关与体积优化、代码精简与性能优化、lint/tsc 清理、debug APK 构建
+- 正在进行：README 与编码规范修复验证
+- 已完成：WebDAV 备份图片开关与体积优化、代码精简与性能优化、lint/tsc 清理、chunk 拆分与优化、debug APK 构建、README 功能与技术栈更新
 - 阻塞项：无
 
 ## 关键决策索引
@@ -27,10 +33,13 @@
 - Decision-009：WebDAV 备份新增“包含图片”开关，默认关闭以减少上传体积
 - Decision-010：趋势曲线复用 ECharts 实例并缓存图表数据，减少重复初始化
 - Decision-011：启用 ESLint + TSC 做未使用导入与死代码清理
+- Decision-012：Vite 使用 manualChunks 拆分大体积依赖
+- Decision-013：统计页拆分为懒加载组件，避免主包过大
+- Decision-014：ECharts 改为 core 按需引入，降低图表 chunk 体积
 
 ## 构建记录
 - 最近一次构建：
-  - 版本号：1.5.0（versionCode 19）
+  - 版本号：1.5.7（versionCode 26）
   - APK 路径：android/app/build/outputs/apk/debug/app-debug.apk
   - 构建状态：成功
 
@@ -244,3 +253,85 @@
   - 冲突与修正：npm 安装遇到锁文件版本问题，改用 --no-package-lock 安装 ESLint 相关依赖
   - Assumption：ESLint 自动修复对现有功能无行为变化
   - 下一步 TODO：确认 dev server 可正常启动并检查 lint/tsc 结果
+
+- 2026-02-01
+  - 本轮上下文：按需求启用 Vite manualChunks 拆分大包，降低 chunk 体积告警，并完成 debug APK 构建
+  - 关键决策：
+    - 将 echarts、react、genai、capacitor 相关依赖单独拆分为独立 chunk
+  - Changes：
+    - [MOD] vite.config.ts: 添加 rollupOptions.output.manualChunks 拆分大依赖
+    - [MOD] package.json: 版本号更新至 1.5.1
+    - [MOD] android/app/build.gradle: 版本号提升至 1.5.1 / 20
+    - [MOD] doc/WORKLOG.md: 更新分包与构建记录
+  - 多语言改动说明：无
+  - 构建结果：debug APK 构建成功，输出 android/app/build/outputs/apk/debug/app-debug.apk
+  - 冲突与修正：无
+  - Assumption：manualChunks 有助于降低单个 chunk 体积告警
+  - 下一步 TODO：运行 npm run build 验证告警是否减少
+
+
+
+
+- 2026-02-01
+  - 本轮上下文：继续拆分大包，统计页改为懒加载组件并完成 debug APK 构建
+  - 关键决策：
+    - 统计页独立成 StatsTab 组件，ECharts 随需加载
+  - Changes：
+    - [ADD] components/StatsTab.tsx: 统计页拆分为独立组件并包含趋势图渲染
+    - [MOD] App.tsx: 统计页改为 React.lazy + Suspense 懒加载
+    - [MOD] package.json: 版本号更新至 1.5.2
+    - [MOD] android/app/build.gradle: 版本号提升至 1.5.2 / 21
+    - [MOD] doc/WORKLOG.md: 更新拆分与构建记录
+  - 多语言改动说明：无
+  - 构建结果：debug APK 构建成功，输出 android/app/build/outputs/apk/debug/app-debug.apk
+  - 冲突与修正：npm run build 仍提示 echarts chunk 超过 500 kB
+  - Assumption：统计页懒加载可降低主包体积告警
+  - 下一步 TODO：评估使用 echarts/core 按需引入或提高 chunkSizeWarningLimit
+
+
+- 2026-02-01
+  - 本轮上下文：继续拆分大包，改为 ECharts core 按需引入并清理空分包，完成 debug APK 构建
+  - 关键决策：
+    - 统计页使用 echarts/core + LineChart + GridComponent + CanvasRenderer 进行按需加载
+    - 移除空的 genai manualChunks，避免构建告警
+  - Changes：
+    - [MOD] components/StatsTab.tsx: 改为 echarts/core 按需引入并注册组件
+    - [MOD] vite.config.ts: manualChunks 调整，移除空分包并匹配 echarts/core
+    - [MOD] package.json: 版本号更新至 1.5.4
+    - [MOD] android/app/build.gradle: 版本号提升至 1.5.4 / 23
+    - [MOD] doc/WORKLOG.md: 更新拆分与构建记录
+  - 多语言改动说明：无
+  - 构建结果：debug APK 构建成功，输出 android/app/build/outputs/apk/debug/app-debug.apk
+  - 冲突与修正：npm run build 不再出现 chunk 体积告警
+  - Assumption：echarts/core 按需引入能显著降低图表 chunk 体积
+  - 下一步 TODO：确认统计页功能在真机上渲染正常
+
+- 2026-02-01
+  - 本轮上下文：依据现有功能更新 README，补充技术栈与功能说明，并完成 debug APK 构建
+  - 关键决策：
+    - README 补充 ECharts/JSZip/WebDAV/ESLint+TSC 等现有技术与功能点
+  - Changes：
+    - [MOD] README.md: 更新功能特性与开发技术说明
+    - [MOD] package.json: 版本号更新至 1.5.6
+    - [MOD] android/app/build.gradle: 版本号提升至 1.5.6 / 25
+    - [MOD] doc/WORKLOG.md: 记录 README 更新与构建信息
+  - 多语言改动说明：无
+  - 构建结果：debug APK 构建成功，输出 android/app/build/outputs/apk/debug/app-debug.apk
+  - 冲突与修正：无
+  - Assumption：README 以现有功能为准进行总结
+  - 下一步 TODO：补充 RELEASE_NOTES_1.5.6
+
+- 2026-02-01
+  - 本轮上下文：修复 README 与 WORKLOG 的 UTF-8 BOM，更新版本并完成 debug APK 构建
+  - 关键决策：
+    - 统一为 UTF-8（无 BOM）以符合编码规范
+  - Changes：
+    - [MOD] README.md: 去除 UTF-8 BOM，统一为 UTF-8（无 BOM）
+    - [MOD] doc/WORKLOG.md: 去除 UTF-8 BOM 并更新构建记录
+    - [MOD] package.json: 版本号更新至 1.5.7
+    - [MOD] android/app/build.gradle: 版本号提升至 1.5.7 / 26
+  - 多语言改动说明：无
+  - 构建结果：debug APK 构建成功，输出 android/app/build/outputs/apk/debug/app-debug.apk
+  - 冲突与修正：Gradle 找不到 JDK 21，构建时设置 JAVA_HOME 指向 .jdk/jdk-21.0.9+10
+  - Assumption：仅移除 BOM 不影响运行行为
+  - 下一步 TODO：无
