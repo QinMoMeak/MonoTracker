@@ -39,8 +39,7 @@ Tracker 是一款本地优先的物品购买与资产追踪应用，支持 AI �
 
 ## App 效果图
 
-![](doc/pages/FireShot Capture 001 - MonoTracker Prototype - [].png)
-
+![](doc/pages/1.png)  
 
 ## 高保真原型
 - 原型总览：`doc/index.html`
