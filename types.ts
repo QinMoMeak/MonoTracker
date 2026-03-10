@@ -6,7 +6,7 @@ export type Tab = 'owned' | 'wishlist' | 'stats' | 'profile';
 export type RestoreMode = 'merge' | 'overwrite';
 // CategoryType is now loosely typed to allow custom strings, but keeps specific keys for config lookup
 export type CategoryType = 'digital' | 'fashion' | 'home' | 'beauty' | 'books' | 'sports' | 'health' | 'other' | string;
-export type AiProvider = 'disabled' | 'openai' | 'gemini' | 'anthropic' | 'deepseek' | 'moonshot' | 'qwen' | 'zhipu' | 'doubao';
+export type AiProvider = 'disabled' | 'openai' | 'gemini' | 'anthropic' | 'deepseek' | 'moonshot' | 'qwen' | 'zhipu' | 'doubao' | 'iflow';
 
 export interface AiCredentials {
   apiKey: string;
@@ -49,6 +49,7 @@ export interface Item {
   note: string;
   link: string;
   image?: string; // Base64
+  hasImage?: boolean;
   usageCount: number; // For manual usage tracking
   discountRate?: number; // Calculated or manual
   priceHistory?: PricePoint[]; // Wishlist price snapshots

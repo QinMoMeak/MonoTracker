@@ -105,6 +105,24 @@ export const AI_PROVIDERS: AiProviderMeta[] = [
       { id: "doubao-seed-1-6-lite-251015", label: "doubao-seed-1-6-lite-251015", defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3/chat/completions" },
       { id: "doubao-seed-1-8-251228", label: "doubao-seed-1-8-251228", defaultBaseUrl: "https://ark.cn-beijing.volces.com/api/v3/chat/completions" }
     ]
+  },
+  {
+    id: "iflow",
+    type: "openai",
+    labelKey: "aiIflow",
+    defaultModel: "Qwen3-VL-Plus",
+    defaultBaseUrl: "https://apis.iflow.cn/v1",
+    supportsVision: true,
+    models: [
+      { id: "Qwen3-VL-Plus", label: "Qwen3-VL-Plus" },
+      { id: "Qwen3-Max", label: "Qwen3-Max" },
+      { id: "Qwen3-Coder-Plus", label: "Qwen3-Coder-Plus" },
+      { id: "Kimi-K2-Instruct-0905", label: "Kimi-K2-Instruct-0905" },
+      { id: "DeepSeek-R1", label: "DeepSeek-R1" },
+      { id: "DeepSeek-V3-671B", label: "DeepSeek-V3-671B" },
+      { id: "DeepSeek-V3.2-Exp", label: "DeepSeek-V3.2-Exp" },
+      { id: "iFlow-ROME", label: "iFlow-ROME" }
+    ]
   }
 ];
 

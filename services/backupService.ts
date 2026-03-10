@@ -8,6 +8,8 @@ type ExportZipResult = {
   base64: string;
 };
 
+type ResolveItemImage = (item: Item) => Promise<string | undefined>;
+
 const DATA_JSON = 'data.json';
 const DATA_CSV = 'data.csv';
 const IMAGES_DIR = 'images';
@@ -72,11 +74,17 @@ const normalizeItem = (raw: any): Item => {
   item.priceHistory = Array.isArray(item.priceHistory) ? item.priceHistory : [];
   item.category = item.category || 'other';
   if (!item.storeName) item.storeName = '';
+  item.hasImage = Boolean(item.image || item.hasImage);
   if (!item.image) item.image = undefined;
   return item as Item;
 };
 
-export const buildExportZip = async (items: Item[], csvContent?: string, includeImages = true): Promise<ExportZipResult> => {
+export const buildExportZip = async (
+  items: Item[],
+  csvContent?: string,
+  includeImages = true,
+  resolveItemImage?: ResolveItemImage
+): Promise<ExportZipResult> => {
   const zip = new JSZip();
   const csv = csvContent || `\ufeff${exportCSV(items)}`;
   zip.file(DATA_CSV, csv);
@@ -84,15 +92,16 @@ export const buildExportZip = async (items: Item[], csvContent?: string, include
   const exportItems: any[] = [];
   for (const item of items) {
     const { image, ...rest } = item;
-    if (includeImages && image) {
-      const parsed = parseDataUrl(image);
+    const resolvedImage = includeImages ? (image || (resolveItemImage ? await resolveItemImage(item) : undefined)) : undefined;
+    if (includeImages && resolvedImage) {
+      const parsed = parseDataUrl(resolvedImage);
       if (parsed) {
         const ext = MIME_TO_EXT[parsed.mime] || 'png';
         const imageFile = `${IMAGES_DIR}/${item.id}.${ext}`;
         zip.file(imageFile, parsed.bytes, { binary: true });
         exportItems.push({ ...rest, imageFile });
       } else {
-        exportItems.push({ ...rest, image });
+        exportItems.push({ ...rest, image: resolvedImage });
       }
     } else {
       exportItems.push({ ...rest });

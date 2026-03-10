@@ -6,7 +6,7 @@ import { Share } from '@capacitor/share';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { AiConfig, AiCredentials, AiProvider, AiRuntimeConfig, Item, Language, ThemeColor, Tab, AppearanceMode, WebDavConfig, RestoreMode } from './types';
 import { THEMES, TEXTS, ICONS, INITIAL_ITEMS, CATEGORY_CONFIG, DEFAULT_CHANNELS, DEFAULT_STATUSES } from './constants';
-import { loadState, saveState, exportCSV } from './services/storageService';
+import { loadItemImage, loadState, saveState, exportCSV } from './services/storageService';
 import { buildExportZip, importBackupFile } from './services/backupService';
 import { deleteWebDav, downloadWebDav, existsWebDav, uploadWebDav } from './services/webdavService';
 import { AI_PROVIDERS, getModelMeta, getProviderMeta, getProviderModels } from './services/aiProviders';
@@ -19,6 +19,7 @@ const StatsTab = lazy(() => import('./components/StatsTab'));
 const App: React.FC = () => {
   // --- State ---
   const [items, setItems] = useState<Item[]>([]);
+  const [itemImages, setItemImages] = useState<Record<string, string>>({});
   const [language, setLanguage] = useState<Language>('zh-CN');
   const [theme, setTheme] = useState<ThemeColor>('blue');
   const [appearance, setAppearance] = useState<AppearanceMode>('system');
@@ -63,6 +64,9 @@ const App: React.FC = () => {
   const [webdavHistory, setWebdavHistory] = useState<WebDavManifestEntry[]>([]);
   const [webdavHistoryLoading, setWebdavHistoryLoading] = useState(false);
   const [selectedWebdavBackupId, setSelectedWebdavBackupId] = useState('');
+  const itemImagesRef = useRef<Record<string, string>>({});
+  const pendingImageLoadsRef = useRef<Map<string, Promise<string | undefined>>>(new Map());
+  const saveTimeoutRef = useRef<number | null>(null);
 
   type DialogState = {
     type: 'alert' | 'confirm' | 'prompt';
@@ -365,9 +369,47 @@ const App: React.FC = () => {
       category: item.category || 'other',
       status: item.status || 'new',
       storeName: item.storeName || '',
-      purchaseDate: normalizeDate(item.purchaseDate)
+      purchaseDate: normalizeDate(item.purchaseDate),
+      hasImage: Boolean(item.image || item.hasImage)
     };
   };
+
+  const getResolvedItemImage = useCallback(
+    async (item: Partial<Item> | null | undefined) => {
+      if (!item?.id) return item?.image;
+      if (item.image) return item.image;
+      const cached = itemImagesRef.current[item.id];
+      if (cached) return cached;
+      if (!item.hasImage) return undefined;
+
+      const pending = pendingImageLoadsRef.current.get(item.id);
+      if (pending) return pending;
+
+      const task = loadItemImage(item.id)
+        .then(image => {
+          if (image) {
+            itemImagesRef.current = { ...itemImagesRef.current, [item.id!]: image };
+            setItemImages(prev => (prev[item.id!] === image ? prev : { ...prev, [item.id!]: image }));
+          }
+          return image;
+        })
+        .finally(() => {
+          pendingImageLoadsRef.current.delete(item.id!);
+        });
+
+      pendingImageLoadsRef.current.set(item.id, task);
+      return task;
+    },
+    []
+  );
+
+  const getItemImageSync = useCallback(
+    (item: Partial<Item> | null | undefined) => {
+      if (!item) return undefined;
+      return item.image || (item.id ? itemImagesRef.current[item.id] : undefined);
+    },
+    []
+  );
 
   const channelLabelMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -447,6 +489,8 @@ const App: React.FC = () => {
     const init = async () => {
       const loaded = await loadState();
       if (!isMounted) return;
+      itemImagesRef.current = {};
+      setItemImages({});
 
       if (loaded.items) {
           const migratedItems = loaded.items.map(normalizeItem).map(i => ({
@@ -524,9 +568,40 @@ const App: React.FC = () => {
   useEffect(() => {
     // Prevent saving if we haven't loaded yet to avoid overwriting with initial empty state
     if (!isLoaded) return;
+    if (saveTimeoutRef.current) {
+      window.clearTimeout(saveTimeoutRef.current);
+    }
 
-    void saveState({ items, language, theme, appearance, aiConfig, categories, statuses, channels, webdav: webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages, webdavRestoreMode });
+    saveTimeoutRef.current = window.setTimeout(() => {
+      void saveState({ items, language, theme, appearance, aiConfig, categories, statuses, channels, webdav: webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages, webdavRestoreMode });
+    }, 250);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        window.clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+    };
   }, [items, language, theme, appearance, aiConfig, categories, statuses, channels, webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages, webdavRestoreMode, isLoaded]);
+
+  useEffect(() => {
+    const validIds = new Set(items.map(item => item.id));
+    let changed = false;
+    const nextCache: Record<string, string> = {};
+
+    Object.entries(itemImagesRef.current).forEach(([id, image]) => {
+      if (validIds.has(id)) {
+        nextCache[id] = image;
+      } else {
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      itemImagesRef.current = nextCache;
+      setItemImages(nextCache);
+    }
+  }, [items]);
 
   const closeAddModal = () => {
     setIsAddModalOpen(false);
@@ -554,11 +629,12 @@ const App: React.FC = () => {
     void refreshWebDavHistory();
   }, [showWebdavModal]);
 
-  const openImagePreview = useCallback((src: string, name?: string) => {
+  const openImagePreview = useCallback(async (item: Item) => {
+    const src = await getResolvedItemImage(item);
     if (!src) return;
-    setPreviewImage({ src, name });
+    setPreviewImage({ src, name: item.name });
     window.history.pushState(null, '', '');
-  }, []);
+  }, [getResolvedItemImage]);
 
   const closeImagePreview = () => {
     setPreviewImage(null);
@@ -615,7 +691,7 @@ const App: React.FC = () => {
     if (autoBackupInFlight.current) return;
 
     autoBackupInFlight.current = true;
-    buildExportZip(items, undefined, webdavIncludeImages)
+    buildExportZip(items, undefined, webdavIncludeImages, getResolvedItemImage)
       .then(async ({ blob }) => {
         const id = buildBackupId();
         const entry = await createSnapshotEntry(blob, id);
@@ -808,6 +884,7 @@ const App: React.FC = () => {
 
   // --- Handlers ---
   const handleSaveItem = (itemData: Partial<Item>) => {
+    const nextImage = typeof itemData.image === 'string' && itemData.image ? itemData.image : undefined;
     if (itemData.id) {
         // Edit existing item
         setItems(prev => prev.map(i => {
@@ -815,15 +892,34 @@ const App: React.FC = () => {
           const nextPrice = itemData.price ?? i.price ?? 0;
           const nextQty = Math.max(1, Math.floor(toNumber((itemData.quantity ?? i.quantity) as any) || 1));
           const nextAvg = itemData.avgPrice ?? Number((nextPrice / nextQty).toFixed(2));
-          return { ...i, ...itemData, quantity: nextQty, avgPrice: nextAvg } as Item;
+          return {
+            ...i,
+            ...itemData,
+            quantity: nextQty,
+            avgPrice: nextAvg,
+            hasImage: nextImage ? true : Boolean(itemData.image === undefined ? i.hasImage : false)
+          } as Item;
         }));
+        if (itemData.id) {
+          if (nextImage) {
+            itemImagesRef.current = { ...itemImagesRef.current, [itemData.id]: nextImage };
+            setItemImages(prev => ({ ...prev, [itemData.id!]: nextImage }));
+          } else if (itemData.image === undefined) {
+            // keep existing cached image
+          } else {
+            const { [itemData.id]: _, ...rest } = itemImagesRef.current;
+            itemImagesRef.current = rest;
+            setItemImages(rest);
+          }
+        }
     } else {
         // Create new item
+        const newId = Date.now().toString();
         const quantity = Math.max(1, Math.floor(toNumber(itemData.quantity as any) || 1));
         const price = itemData.price || 0;
         const avgPrice = itemData.avgPrice ?? Number((price / quantity).toFixed(2));
         const newItem: Item = {
-            id: Date.now().toString(),
+            id: newId,
             type: (itemData.type as any) || (activeTab === 'wishlist' ? 'wishlist' : 'owned'),
             name: itemData.name || TEXTS.unknownItem[language],
             price,
@@ -838,6 +934,7 @@ const App: React.FC = () => {
             link: itemData.link || '',
             storeName: itemData.storeName || '',
             image: itemData.image,
+            hasImage: Boolean(nextImage),
             usageCount: itemData.usageCount || 0,
             discountRate: itemData.discountRate,
             channel: itemData.channel,
@@ -845,19 +942,24 @@ const App: React.FC = () => {
             valueDisplay: itemData.valueDisplay || 'both'
         };
         setItems(prev => [newItem, ...prev]);
+        if (nextImage) {
+          itemImagesRef.current = { ...itemImagesRef.current, [newId]: nextImage };
+          setItemImages(prev => ({ ...prev, [newId]: nextImage }));
+        }
     }
     closeAddModal();
     // Go back in history to close modal (triggers popstate listener)
     window.history.back();
   };
 
-  const handleEditItem = useCallback((item: Item) => {
-      setEditingItem(item);
+  const handleEditItem = useCallback(async (item: Item) => {
+      const resolvedImage = await getResolvedItemImage(item);
+      setEditingItem(resolvedImage ? { ...item, image: resolvedImage } : item);
       setInitialAddMode('manual');
       setIsAddModalOpen(true);
       // Push state to allow back button to close modal
       window.history.pushState(null, '', '');
-  }, []);
+  }, [getResolvedItemImage]);
 
   const handleOpenAdd = (mode: 'ai' | 'manual') => {
       setEditingItem(null);
@@ -906,6 +1008,9 @@ const App: React.FC = () => {
 
   const deleteItemById = (id: string) => {
     setItems(prev => prev.filter(i => i.id !== id));
+    const { [id]: _, ...rest } = itemImagesRef.current;
+    itemImagesRef.current = rest;
+    setItemImages(rest);
   };
 
   const handleAddUsage = useCallback((item: Item) => {
@@ -1084,7 +1189,7 @@ const App: React.FC = () => {
 
     const executeFileSave = async () => {
       const csvContent = exportData || `\ufeff${exportCSV(items)}`;
-      const { fileName, blob, base64 } = await buildExportZip(items, csvContent);
+      const { fileName, blob, base64 } = await buildExportZip(items, csvContent, true, getResolvedItemImage);
 
       const triggerDownload = (href: string) => {
           const link = document.createElement('a');
@@ -1155,7 +1260,7 @@ const App: React.FC = () => {
 
     const executeShare = async () => {
       const csvContent = exportData || `\ufeff${exportCSV(items)}`;
-      const { fileName, blob, base64 } = await buildExportZip(items, csvContent);
+      const { fileName, blob, base64 } = await buildExportZip(items, csvContent, true, getResolvedItemImage);
 
       if (Capacitor.isNativePlatform()) {
           try {
@@ -1281,7 +1386,7 @@ const App: React.FC = () => {
 
     try {
       const csvContent = `﻿${exportCSV(items)}`;
-      const { blob } = await buildExportZip(items, csvContent, webdavIncludeImages);
+      const { blob } = await buildExportZip(items, csvContent, webdavIncludeImages, getResolvedItemImage);
       if (!shouldCommitBackup(items.length)) {
         await openAlert(t('webdavUploadFailed', 'WebDAV ????'));
         return;
@@ -1349,14 +1454,15 @@ const App: React.FC = () => {
     : '';
   
   // 1. First filter by tab
-  const tabItems = useMemo(() => items.filter(i => {
-      if (activeTab === 'profile' || activeTab === 'stats') return true;
-      return i.type === activeTab;
-  }), [items, activeTab]);
+  const isListTab = activeTab === 'owned' || activeTab === 'wishlist';
+  const tabItems = useMemo(() => {
+    if (!isListTab) return [];
+    return items.filter(i => i.type === activeTab);
+  }, [items, activeTab, isListTab]);
 
   // 2. Compute available filter options based on tab
   const availableFilters = useMemo(() => {
-    if (activeTab === 'profile' || activeTab === 'stats') return [];
+    if (!isListTab) return [];
     
     const options = new Set<string>();
 
@@ -1375,10 +1481,11 @@ const App: React.FC = () => {
     }
     
     return Array.from(options);
-  }, [tabItems, activeTab, categories, statuses]);
+  }, [tabItems, activeTab, categories, statuses, isListTab]);
 
   // 3. Filter by selected option
   const finalDisplayItems = useMemo(() => {
+      if (!isListTab) return [];
       const query = searchQuery.trim().toLowerCase();
       const minPrice = filterPriceMin ? parseFloat(filterPriceMin) : null;
       const maxPrice = filterPriceMax ? parseFloat(filterPriceMax) : null;
@@ -1424,14 +1531,39 @@ const App: React.FC = () => {
       filterDateEnd,
       filterPriceMin,
       filterPriceMax,
-      getChannelLabel
+      getChannelLabel,
+      isListTab
   ]);
+
+  useEffect(() => {
+    if (!isListTab) return;
+    finalDisplayItems
+      .filter(item => item.hasImage && !getItemImageSync(item))
+      .slice(0, 12)
+      .forEach(item => {
+        void getResolvedItemImage(item);
+      });
+  }, [finalDisplayItems, getItemImageSync, getResolvedItemImage, isListTab]);
   
   const ownedItems = useMemo(() => items.filter(i => i.type === 'owned'), [items]);
   const totalValue = useMemo(() => ownedItems.reduce((acc, curr) => acc + curr.price, 0), [ownedItems]);
+  const shouldComputeStats = activeTab === 'stats';
 
   // --- STATISTICS CALCULATIONS ---
   const stats = useMemo(() => {
+    if (!shouldComputeStats) {
+      return {
+        totalCount: ownedItems.length,
+        totalVal: totalValue,
+        catStatsByValue: [],
+        catStatsByCount: [],
+        statusStats: [],
+        durationBuckets: { '<1M': 0, '1-6M': 0, '6-12M': 0, '1-3Y': 0, '>3Y': 0 },
+        timelineData: [],
+        monthlySpend: [],
+        channelStats: []
+      };
+    }
     const totalCount = ownedItems.length;
     const totalVal = ownedItems.reduce((acc, i) => acc + i.price, 0);
     const channelLabelFallback = TEXTS.channelUnknown[language];
@@ -1523,7 +1655,7 @@ const App: React.FC = () => {
       .sort((a, b) => b.value - a.value);
 
     return { totalCount, totalVal, catStatsByValue, catStatsByCount, statusStats, durationBuckets, timelineData, monthlySpend, channelStats };
-  }, [ownedItems, categories, normalizeChannelValue]);
+  }, [ownedItems, categories, normalizeChannelValue, shouldComputeStats, totalValue]);
 
 
   // Helper for localized status label
@@ -1763,23 +1895,26 @@ const App: React.FC = () => {
         <div className="space-y-5">
           <div>
             <p className="text-xs font-semibold opacity-50 mb-3 uppercase">{TEXTS.aiProvider[language]}</p>
-            <div className="grid grid-cols-2 gap-2">
-              {AI_PROVIDERS.map(provider => {
-                const isSelected = aiConfig.provider === provider.id;
-                return (
-                  <button
-                    key={provider.id}
-                    onClick={() => handleSelectProvider(provider.id)}
-                    className={`py-3 rounded-xl text-xs font-semibold transition-all ${
-                      isSelected
-                        ? `${themeColors.primary} text-white shadow-md`
-                        : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'
-                    }`}
-                  >
-                    {TEXTS[provider.labelKey][language]}
-                  </button>
-                );
-              })}
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-3">{TEXTS.aiProviderHint[language]}</p>
+            <div className="max-h-56 overflow-y-auto no-scrollbar overscroll-contain pr-1">
+              <div className="grid grid-cols-3 gap-2">
+                {AI_PROVIDERS.map(provider => {
+                  const isSelected = aiConfig.provider === provider.id;
+                  return (
+                    <button
+                      key={provider.id}
+                      onClick={() => handleSelectProvider(provider.id)}
+                      className={`min-h-[3rem] px-2 py-2 rounded-xl text-[11px] leading-tight font-semibold transition-all break-words ${
+                        isSelected
+                          ? `${themeColors.primary} text-white shadow-md`
+                          : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'
+                      }`}
+                    >
+                      {TEXTS[provider.labelKey][language]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -2180,6 +2315,8 @@ const App: React.FC = () => {
               onEdit={handleEditItem}
               onDelete={handleDeleteItem}
               onAddUsage={handleAddUsage}
+              imageMap={itemImages}
+              onRequestImage={getResolvedItemImage}
               onPreviewImage={openImagePreview}
             />
         </>
