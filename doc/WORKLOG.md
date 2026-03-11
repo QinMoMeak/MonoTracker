@@ -14,12 +14,12 @@
 - 若无法确认是否存在 BOM：默认执行一次全量去 BOM 规范化流程再继续
 
 ## 当前版本
-- versionName：1.5.15
-- versionCode（如有）：34
+- versionName：1.5.17
+- versionCode（如有）：36
 
 ## 当前状态
-- 正在进行：1.5.14 发布说明补充性能优化内容并重新构建
-- 已完成：主状态与图片分离持久化、列表分批渲染、统计计算按需执行、iFlow 服务商配置接入、1.5.14 发布说明落盘
+- 正在进行：1.5.17 APK 版本核验
+- 已完成：主状态与图片分离持久化、列表分批渲染、统计计算按需执行、iFlow 服务商配置接入、1.5.15 发布说明落盘、完整用户使用说明书、新手快速上手文档与应用入口接入
 - 阻塞项：无
 ## 关键决策索引
 
@@ -58,9 +58,9 @@
 ## 构建记录
 
 - 最近一次构建：
-  - 版本号：1.5.15（versionCode 34）
+  - 版本号：1.5.17（versionCode 36）
   - APK 路径：android/app/build/outputs/apk/debug/app-debug.apk
-  - 构建状态：进行中
+  - 构建状态：成功
 
 ## 会话日志（按时间追加）
 - 2026-02-01
@@ -164,12 +164,61 @@
     - 发布说明加入上一轮大数据量性能优化与稳定性修复，确保 release 文案与实际改动一致
     - 按当前版本管理规则重新构建并提升版本到 1.5.15 / 34
   - Changes：
-    - [MOD] doc/RELEASE_NOTES_1.5.14.md: 补充性能优化、启动提速与新增闪退修复说明
+    - [DEL] doc/RELEASE_NOTES_1.5.14.md: 删除与当前版本不一致的发布说明文件
+    - [ADD] doc/RELEASE_NOTES_1.5.15.md: 新增 1.5.15 发布说明，补充性能优化、启动提速与新增闪退修复说明
     - [MOD] package.json: 版本号提升至 1.5.15
     - [MOD] android/app/build.gradle: 版本号提升至 1.5.15 / 34
     - [MOD] doc/WORKLOG.md: 更新工作记忆与构建记录
   - 多语言改动说明：无
-  - 构建结果：进行中
+  - 构建结果：`npm run build`、`npx cap sync android`、`android\\gradlew assembleDebug` 全部成功，输出 android/app/build/outputs/apk/debug/app-debug.apk
   - 冲突与修正：无
-  - Assumption：发布说明虽然文件名仍为 1.5.14，但可以先补充内容，再由用户决定是否同步更名
-  - 下一步 TODO：如需保持版本一致性，可将发布说明文件名同步调整为 1.5.15
+  - Assumption：发布说明应与当前版本号保持一致，避免后续 release 使用时混淆
+  - 下一步 TODO：确认 1.5.15 的构建与发布文档均已可直接用于 release
+
+- 2026-03-11
+  - 本轮上下文：结合源码、开发文档、doc 目录资料与 DeepWiki 项目介绍页，编写面向软件使用者的完整使用说明书
+  - 关键决策：
+    - 说明书以当前实际实现为准，DeepWiki 仅用作高层结构参考，功能细节优先采用源码与本地文档
+    - 文档面向普通使用者，按“功能总览 -> 页面操作 -> 数据与备份 -> 常见问题”的顺序组织
+  - Changes：
+    - [ADD] doc/USER_MANUAL.md: 新增完整用户使用说明书，覆盖基础操作、AI、统计、导入导出、WebDAV、隐私与 FAQ
+    - [MOD] package.json: 版本号提升至 1.5.16
+    - [MOD] android/app/build.gradle: 版本号提升至 1.5.16 / 35
+    - [MOD] doc/WORKLOG.md: 更新工作记忆与构建记录
+  - 多语言改动说明：无
+  - 构建结果：`npm run build`、`npx cap sync android`、`android\\gradlew assembleDebug` 全部成功，输出 android/app/build/outputs/apk/debug/app-debug.apk
+  - 冲突与修正：无
+  - Assumption：用户使用说明书不需要额外拆分为多语言版本，中文单文档即可满足当前需求
+  - 下一步 TODO：如需对外发布，可继续拆分为简版、新手版和 FAQ 独立文档
+
+- 2026-03-11
+  - 本轮上下文：从完整说明书中拆分新手快速上手文档，接入“我的”页面，并把文档入口同步到 README
+  - 关键决策：
+    - 新手快速上手采用应用内弹窗 + doc 独立 Markdown 双入口，兼顾 App 内查看与仓库文档浏览
+    - 应用内展示内容全部走 constants.ts 多语言字典，避免新增未本地化的界面文字
+  - Changes：
+    - [ADD] doc/QUICK_START.md: 新增新手快速上手文档
+    - [MOD] App.tsx: 在“我的”页面新增新手快速上手入口与说明弹窗
+    - [MOD] constants.ts: 新增新手快速上手相关多语言文案
+    - [MOD] README.md: 增加用户指南入口，指向 QUICK_START 与 USER_MANUAL
+    - [MOD] package.json: 版本号提升至 1.5.17
+    - [MOD] android/app/build.gradle: 版本号提升至 1.5.17 / 36
+    - [MOD] doc/WORKLOG.md: 更新工作记忆与构建记录
+  - 多语言改动说明：新增新手快速上手入口、标题、步骤与提示文案，已覆盖 zh-CN / zh-TW / en / ja
+  - 构建结果：`npm run build`、`npx cap sync android`、`android\\gradlew assembleDebug` 全部成功，输出 android/app/build/outputs/apk/debug/app-debug.apk
+  - 冲突与修正：无
+  - Assumption：用户更需要在 App 内快速看到核心操作步骤，而不是直接阅读长篇说明书
+  - 下一步 TODO：如需进一步提升可发现性，可在首次启动时自动弹出一次快速上手
+
+- 2026-03-11
+  - 本轮上下文：用户反馈 APK 版本不对，执行 clean 重建并核验包内版本号
+  - 关键决策：
+    - 不依赖旧产物路径，直接执行 `gradlew clean assembleDebug` 强制重建
+    - 使用 Android SDK `aapt dump badging` 直接读取 APK 包内版本，避免只看文件名或配置文件
+  - Changes：
+    - [MOD] doc/WORKLOG.md: 记录 APK 重建与版本核验结果
+  - 多语言改动说明：无
+  - 构建结果：`npm run build`、`npx cap sync android`、`android\\gradlew clean assembleDebug` 全部成功；经 `aapt` 核验，APK 版本为 1.5.17（versionCode 36），输出 android/app/build/outputs/apk/debug/app-debug.apk
+  - 冲突与修正：标准输出目录一度缺少调试包，已通过重建恢复
+  - Assumption：用户之前拿到的是旧 APK 或旧构建残留文件
+  - 下一步 TODO：如需进一步降低误拿旧包的概率，可在构建后自动复制一份到项目根目录

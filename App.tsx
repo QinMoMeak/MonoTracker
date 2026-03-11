@@ -30,6 +30,7 @@ const App: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState<boolean>(false);
   const [aiConfig, setAiConfig] = useState<AiConfig>({ provider: 'disabled', model: '', credentials: {} });
   const [showAiSettingsModal, setShowAiSettingsModal] = useState(false);
+  const [showQuickStartModal, setShowQuickStartModal] = useState(false);
   const [showDataManageModal, setShowDataManageModal] = useState(false);
   const [showWebdavModal, setShowWebdavModal] = useState(false);
   const [previewImage, setPreviewImage] = useState<{ src: string; name?: string } | null>(null);
@@ -616,6 +617,10 @@ const App: React.FC = () => {
     setShowAiSettingsModal(false);
   };
 
+  const closeQuickStartModal = () => {
+    setShowQuickStartModal(false);
+  };
+
   const closeDataManageModal = () => {
     setShowDataManageModal(false);
   };
@@ -661,6 +666,9 @@ const App: React.FC = () => {
       if (showAiSettingsModal) {
           closeAiSettingsModal();
       }
+      if (showQuickStartModal) {
+          closeQuickStartModal();
+      }
       if (showDataManageModal) {
           closeDataManageModal();
       }
@@ -669,14 +677,14 @@ const App: React.FC = () => {
       }
     };
 
-    if (previewImage || isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal || showWebdavModal) {
+    if (previewImage || isAddModalOpen || showExportModal || showAiSettingsModal || showQuickStartModal || showDataManageModal || showWebdavModal) {
       window.addEventListener('popstate', handlePopState);
     }
 
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal, showWebdavModal]);
+  }, [previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showQuickStartModal, showDataManageModal, showWebdavModal]);
 
   const autoBackupInFlight = useRef(false);
 
@@ -717,7 +725,7 @@ const App: React.FC = () => {
         window.history.back();
         return;
       }
-      if (isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal || showWebdavModal) {
+      if (isAddModalOpen || showExportModal || showAiSettingsModal || showQuickStartModal || showDataManageModal || showWebdavModal) {
         window.history.back();
         return;
       }
@@ -735,7 +743,7 @@ const App: React.FC = () => {
     return () => {
       backHandle?.remove();
     };
-  }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal, showWebdavModal]);
+  }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showQuickStartModal, showDataManageModal, showWebdavModal]);
 
   useEffect(() => {
     const handleBackButton = (event: Event) => {
@@ -749,7 +757,7 @@ const App: React.FC = () => {
         window.history.back();
         return;
       }
-      if (isAddModalOpen || showExportModal || showAiSettingsModal || showDataManageModal || showWebdavModal) {
+      if (isAddModalOpen || showExportModal || showAiSettingsModal || showQuickStartModal || showDataManageModal || showWebdavModal) {
         event.preventDefault();
         window.history.back();
       }
@@ -759,7 +767,7 @@ const App: React.FC = () => {
     return () => {
       document.removeEventListener('backbutton', handleBackButton);
     };
-  }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showDataManageModal, showWebdavModal]);
+  }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showQuickStartModal, showDataManageModal, showWebdavModal]);
 
   // Reset filter on tab change
   useEffect(() => {
@@ -983,6 +991,15 @@ const App: React.FC = () => {
       window.history.back();
   };
 
+  const handleOpenQuickStart = () => {
+      setShowQuickStartModal(true);
+      window.history.pushState(null, '', '');
+  };
+
+  const handleCloseQuickStart = () => {
+      window.history.back();
+  };
+
   const handleOpenDataManage = () => {
       setShowDataManageModal(true);
       window.history.pushState(null, '', '');
@@ -1000,6 +1017,14 @@ const App: React.FC = () => {
   const handleCloseWebdav = () => {
       window.history.back();
   };
+
+  const quickStartSteps = [
+    { title: TEXTS.quickStartStep1Title[language], desc: TEXTS.quickStartStep1Desc[language] },
+    { title: TEXTS.quickStartStep2Title[language], desc: TEXTS.quickStartStep2Desc[language] },
+    { title: TEXTS.quickStartStep3Title[language], desc: TEXTS.quickStartStep3Desc[language] },
+    { title: TEXTS.quickStartStep4Title[language], desc: TEXTS.quickStartStep4Desc[language] },
+    { title: TEXTS.quickStartStep5Title[language], desc: TEXTS.quickStartStep5Desc[language] }
+  ];
 
   const handleDeleteItem = async (id: string) => {
     const confirmed = await openConfirm(TEXTS.deleteConfirm[language]);
@@ -1736,6 +1761,15 @@ const App: React.FC = () => {
           {/* Quick Access */}
           <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-4 shadow-sm space-y-3 transition-colors">
             <button
+              onClick={handleOpenQuickStart}
+              className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800"
+            >
+              <span className="flex items-center gap-3 font-semibold">
+                <ICONS.BookOpen size={20}/> {TEXTS.quickStart[language]}
+              </span>
+              <ICONS.ChevronRight size={18} className="opacity-40" />
+            </button>
+            <button
               onClick={handleOpenAiSettings}
               className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800"
             >
@@ -1885,6 +1919,38 @@ const App: React.FC = () => {
             </div>
           </div>
       )}
+
+      <SheetModal
+        isOpen={showQuickStartModal}
+        title={TEXTS.quickStart[language]}
+        theme={theme}
+        onClose={handleCloseQuickStart}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400 leading-6">
+            {TEXTS.quickStartSubtitle[language]}
+          </p>
+          <div className="space-y-3">
+            {quickStartSteps.map((step, index) => (
+              <div
+                key={step.title}
+                className="flex gap-3 p-4 rounded-2xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700"
+              >
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${themeColors.primary}`}>
+                  {index + 1}
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">{step.title}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 leading-6 mt-1">{step.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="text-xs text-gray-400 dark:text-gray-500 leading-6 px-1">
+            {TEXTS.quickStartTip[language]}
+          </div>
+        </div>
+      </SheetModal>
 
       <SheetModal
         isOpen={showAiSettingsModal}
