@@ -92,7 +92,7 @@ Core Features Summary
 | **Item Management**      | Create, read, update, delete items; dual view (owned/wishlist); custom categories, statuses, and channels | React state management in [App.tsx](https://github.com/QinMoMeak/MonoTracker/blob/ccbf8d25/App.tsx) |
 | **AI-Assisted Entry**    | Text + image analysis; multi-image recognition; automatic field population (name, price, category, date) | Multi-provider adapter supporting OpenAI, Gemini, Anthropic, and Chinese AI services |
 | **Search & Filtering**   | Keyword search; date range filters; price range filters; category/status/channel filters | Advanced filtering logic in [App.tsx](https://github.com/QinMoMeak/MonoTracker/blob/ccbf8d25/App.tsx) |
-| **Statistics**           | Monthly spending trends; ownership duration distribution; channel breakdown; top categories; asset overview | ECharts visualization in Statistics tab                      |
+| **Statistics**           | Monthly spending trends; ownership duration distribution; channel breakdown; top categories; asset overview | Native list and progress bar rendering in Statistics tab                      |
 | **Data Portability**     | CSV export/import; ZIP export with images; native share integration | [csvService.ts](https://github.com/QinMoMeak/MonoTracker/blob/ccbf8d25/csvService.ts) and [Capacitor Share plugin](https://github.com/QinMoMeak/MonoTracker/blob/ccbf8d25/Capacitor%20Share%20plugin) |
 | **Cloud Backup**         | WebDAV integration; automatic daily backup; manual restore from last 4 versions; optional image inclusion | [webdavService.ts](https://github.com/QinMoMeak/MonoTracker/blob/ccbf8d25/webdavService.ts) with manifest-based versioning |
 | **Internationalization** | Chinese, English, Japanese language support; theme switching; dark mode | [constants.ts](https://github.com/QinMoMeak/MonoTracker/blob/ccbf8d25/constants.ts) i18n configuration |
@@ -128,7 +128,7 @@ Capacitor 8.0.1 (native bridge)
 | Library         | Version | Purpose                               |
 | --------------- | ------- | ------------------------------------- |
 | `lucide-react`  | 0.562.0 | Icon system                           |
-| `echarts`       | 5.6.0   | Statistical charts and visualizations |
+| `statistics UI` | built-in | Native statistics list and progress bar rendering |
 | `jszip`         | 3.10.1  | ZIP file generation for data export   |
 | `@google/genai` | 1.35.0  | Google Gemini AI integration          |
 
@@ -309,7 +309,7 @@ MonoTracker/
 ├── components/             # React components
 │   ├── AddItemModal.tsx    # Dual-mode item creation (AI + manual)
 │   ├── Timeline.tsx        # Infinite scroll timeline display
-│   ├── StatsTab.tsx        # Lazy-loaded ECharts analytics
+│   ├── StatsTab.tsx        # Lazy-loaded statistics panel
 │   ├── Dialog.tsx          # Alert/Confirm/Prompt modals
 │   └── SheetModal.tsx      # Bottom sheet UI pattern
 ├── services/               # Business logic layer

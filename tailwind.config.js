@@ -1,20 +1,27 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    "./index.html",
-    "./**/*.{js,ts,jsx,tsx}",
+    './index.html',
+    './App.tsx',
+    './index.tsx',
+    './components/**/*.{js,ts,jsx,tsx}',
+    './services/**/*.{js,ts,jsx,tsx}',
+    './hooks/**/*.{js,ts,jsx,tsx}',
+    './utils/**/*.{js,ts,jsx,tsx}',
+    './constants.ts',
+    './types.ts'
   ],
-  darkMode: 'class', // CRITICAL: This allows manual toggling via the 'dark' class
+  darkMode: 'class',
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Noto Sans SC"', '"Noto Sans TC"', '"Noto Sans JP"', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro SC"', '"PingFang SC"', '"Hiragino Sans GB"', '"Microsoft YaHei"', '"Noto Sans CJK SC"', '"Noto Sans SC"', '"Source Han Sans SC"', '"Droid Sans Fallback"', '"Helvetica Neue"', 'Arial', 'sans-serif']
       },
       borderRadius: {
         '4xl': '2rem',
-        '5xl': '2.5rem',
+        '5xl': '2.5rem'
       }
-    },
+    }
   },
-  plugins: [],
-}
+  plugins: []
+};
