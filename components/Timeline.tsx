@@ -2,6 +2,7 @@ import React from 'react';
 import { Item, Language, ThemeColor } from '../types';
 import { THEMES, ICONS, TEXTS, CATEGORY_CONFIG } from '../constants';
 import { formatDate, formatMonth } from '../utils/date';
+import { formatCurrency } from '../utils/format';
 import { TimelineEntryBase, useTimelineGroups } from '../hooks/useTimelineGroups';
 
 interface TimelineProps {
@@ -117,7 +118,6 @@ const TimelineItemCard = React.memo(({
   onPreviewImage?: (item: Item) => void | Promise<void>;
 }) => {
   const themeColors = THEMES[theme];
-  const currencySymbol = '\u00a5';
   const { item, costPerDay, costPerUse, showPerDay, showPerUse, priceHistoryStats } = entry;
   const catConfig = CATEGORY_CONFIG[item.category] || CATEGORY_CONFIG.other;
   const catName = CATEGORY_CONFIG[item.category] ? TEXTS[catConfig.labelKey][language] : item.category;
@@ -140,7 +140,7 @@ const TimelineItemCard = React.memo(({
 
           <div className="flex flex-wrap items-center gap-2">
             <span className={`font-mono font-bold text-lg ${themeColors.secondary}`}>
-              {currencySymbol}{item.price.toLocaleString()}
+              {formatCurrency(item.price, item.currency || 'CNY', language)}
             </span>
             {(item.quantity || 1) > 1 && (
               <>
@@ -148,13 +148,13 @@ const TimelineItemCard = React.memo(({
                   x{item.quantity || 1}
                 </span>
                 <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-700">
-                  {TEXTS.avgPrice[language]} {currencySymbol}{(item.avgPrice ?? (item.price / (item.quantity || 1))).toFixed(2)}
+                  {TEXTS.avgPrice[language]} {formatCurrency(item.avgPrice ?? (item.price / (item.quantity || 1)), item.currency || 'CNY', language)}
                 </span>
               </>
             )}
             {item.msrp > item.price && (
               <span className="text-xs text-gray-400 line-through decoration-gray-300 dark:decoration-gray-600">
-                {currencySymbol}{item.msrp.toLocaleString()}
+                {formatCurrency(item.msrp, item.currency || 'CNY', language)}
               </span>
             )}
             {item.storeName && (
@@ -172,9 +172,9 @@ const TimelineItemCard = React.memo(({
           {item.type === 'wishlist' && priceHistoryStats && (
             <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-2">
               <span className="uppercase text-[10px] opacity-50">{TEXTS.priceHistoryShort[language]}</span>
-              <span>{TEXTS.priceHistoryLatest[language]} {currencySymbol}{priceHistoryStats.latest.price.toFixed(0)}</span>
-              <span>{TEXTS.priceHistoryMin[language]} {currencySymbol}{priceHistoryStats.min.toFixed(0)}</span>
-              <span>{TEXTS.priceHistoryMax[language]} {currencySymbol}{priceHistoryStats.max.toFixed(0)}</span>
+              <span>{TEXTS.priceHistoryLatest[language]} {formatCurrency(priceHistoryStats.latest.price, item.currency || 'CNY', language, { maximumFractionDigits: 0 })}</span>
+              <span>{TEXTS.priceHistoryMin[language]} {formatCurrency(priceHistoryStats.min, item.currency || 'CNY', language, { maximumFractionDigits: 0 })}</span>
+              <span>{TEXTS.priceHistoryMax[language]} {formatCurrency(priceHistoryStats.max, item.currency || 'CNY', language, { maximumFractionDigits: 0 })}</span>
             </div>
           )}
 
@@ -213,13 +213,13 @@ const TimelineItemCard = React.memo(({
             {showPerDay && (
               <div className="flex flex-col">
                 <span className="opacity-50 text-[10px] uppercase">{TEXTS.valPerDay[language]}</span>
-                <span className="font-mono font-semibold">{currencySymbol}{costPerDay.toFixed(1)}</span>
+                <span className="font-mono font-semibold">{formatCurrency(costPerDay, item.currency || 'CNY', language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
               </div>
             )}
             {showPerUse && (
               <div className="flex flex-col">
                 <span className="opacity-50 text-[10px] uppercase">{TEXTS.valPerUse[language]}</span>
-                <span className="font-mono font-semibold">{currencySymbol}{costPerUse.toFixed(1)}</span>
+                <span className="font-mono font-semibold">{formatCurrency(costPerUse, item.currency || 'CNY', language, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
               </div>
             )}
           </div>

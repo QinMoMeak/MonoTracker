@@ -6,6 +6,7 @@ import { analyzeItemDetails } from '../services/aiService';
 import { X, Loader2, Camera, Link as LinkIcon } from 'lucide-react';
 import { processImageFile, revokeImagePreview } from '../utils/imageProcessing';
 import { formatDate } from '../utils/date';
+import { formatCurrency } from '../utils/format';
 
 interface Props {
   isOpen: boolean;
@@ -157,7 +158,7 @@ const AddItemModal: React.FC<Props> = ({
   };
 
   const themeColors = THEMES[theme];
-  const currencySymbol = '\u00a5';
+  const currencyPrefix = '\u00A5';
   const allChannels = channels;
 
   const channelLabelMap = useMemo(() => {
@@ -485,7 +486,7 @@ const AddItemModal: React.FC<Props> = ({
               <div className="flex-1">
                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.price[language]}</label>
                 <div className="relative">
-                    <span className="absolute left-4 top-4 text-gray-400">{currencySymbol}</span>
+                    <span className="absolute left-4 top-4 text-gray-400">{currencyPrefix}</span>
                     <input 
                         type="number"
                         value={formData.price}
@@ -501,7 +502,7 @@ const AddItemModal: React.FC<Props> = ({
               <div className="flex-1">
                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.msrp[language]}</label>
                 <div className="relative">
-                    <span className="absolute left-4 top-4 text-gray-400">{currencySymbol}</span>
+                    <span className="absolute left-4 top-4 text-gray-400">{currencyPrefix}</span>
                     <input 
                         type="number"
                         value={formData.msrp}
@@ -532,7 +533,7 @@ const AddItemModal: React.FC<Props> = ({
               <div className="flex-1">
                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.avgPrice[language]}</label>
                 <div className="relative">
-                  <span className="absolute left-4 top-4 text-gray-400">{currencySymbol}</span>
+                  <span className="absolute left-4 top-4 text-gray-400">{currencyPrefix}</span>
                   <input
                     type="number"
                     value={formData.avgPrice}
@@ -564,7 +565,7 @@ const AddItemModal: React.FC<Props> = ({
                   <div>
                     <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.priceHistoryPrice[language]}</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-3 text-gray-400">{currencySymbol}</span>
+                      <span className="absolute left-3 top-3 text-gray-400">{currencyPrefix}</span>
                       <input
                         type="number"
                         value={historyPrice}
@@ -591,7 +592,7 @@ const AddItemModal: React.FC<Props> = ({
                     <div key={`${formatDate(point.date)}-${index}`} className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-xl px-3 py-2 border border-gray-100 dark:border-slate-700">
                       <div className="flex items-center gap-3 text-xs">
                         <span className="text-gray-400 font-mono">{formatDate(point.date)}</span>
-                        <span className="font-semibold text-gray-700 dark:text-gray-200">{currencySymbol}{point.price.toFixed(2)}</span>
+                        <span className="font-semibold text-gray-700 dark:text-gray-200">{formatCurrency(point.price, formData.currency || 'CNY', language)}</span>
                       </div>
                       <button
                         type="button"

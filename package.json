@@ -1,14 +1,16 @@
 {
   "name": "tracker",
   "private": true,
-  "version": "1.5.19",
+  "version": "1.5.22",
   "type": "module",
   "scripts": {
     "dev": ".\\.tools\\tailwindcss.exe -i ./styles.css -o ./generated/tailwind.css --config ./tailwind.config.js && vite",
     "build": ".\\.tools\\tailwindcss.exe -i ./styles.css -o ./generated/tailwind.css --config ./tailwind.config.js --minify && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepare:apk": "node ./scripts/prepare-apk-build.mjs",
+    "apk:debug": "npm run build && npx cap sync android && cd android && gradlew.bat assembleDebug --no-daemon"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.1",

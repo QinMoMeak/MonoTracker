@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Item, Language } from '../types';
 import { formatDate, formatMonth } from '../utils/date';
+import { formatCurrency } from '../utils/format';
 
 type StatsData = {
   totalVal: number;
@@ -21,7 +22,6 @@ type StatsTabProps = {
   ICONS: Record<string, React.ElementType>;
   CATEGORY_CONFIG: Record<string, { icon: React.ElementType; bg: string; color: string; labelKey: string }>;
   themeColors: { primary: string; secondary: string; container: string };
-  currencySymbol: string;
   formatNumber: (value: number, decimals?: number) => string;
   toNumber: (value: unknown) => number;
   getStatusLabel: (status: string) => string;
@@ -40,7 +40,6 @@ const StatsTab: React.FC<StatsTabProps> = ({
   ICONS,
   CATEGORY_CONFIG,
   themeColors,
-  currencySymbol,
   formatNumber,
   toNumber,
   getStatusLabel,
@@ -73,7 +72,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
             <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.totalValue[language]}</p>
-            <p className={`text-2xl font-light ${themeColors.secondary}`}>{currencySymbol}{formatNumber(stats.totalVal)}</p>
+            <p className={`text-2xl font-light ${themeColors.secondary}`}>{formatCurrency(stats.totalVal, 'CNY', language)}</p>
           </div>
           <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
             <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.itemCount[language]}</p>
@@ -96,7 +95,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
               <div key={month} className="rounded-2xl border border-gray-100 dark:border-slate-800 bg-gray-50/70 dark:bg-slate-800/40 px-4 py-3">
                 <div className="flex items-center justify-between text-sm mb-2 gap-4">
                   <span className="font-semibold text-gray-700 dark:text-gray-200">{month}</span>
-                  <span className={`font-mono font-semibold ${themeColors.secondary}`}>{currencySymbol}{formatNumber(value, 0)}</span>
+                  <span className={`font-mono font-semibold ${themeColors.secondary}`}>{formatCurrency(value, 'CNY', language, { maximumFractionDigits: 0 })}</span>
                 </div>
                 <div className="h-2 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
                   <div className={`h-full rounded-full ${themeColors.primary}`} style={{ width: `${width}%` }} />
@@ -187,7 +186,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
                     </div>
                     <span className="text-sm font-medium">{getCategoryLabel(stat.cat)}</span>
                   </div>
-                  <span className="text-sm font-bold">{currencySymbol}{formatNumber(stat.value)}</span>
+                  <span className="text-sm font-bold">{formatCurrency(stat.value, 'CNY', language)}</span>
                 </div>
                 <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                   <div
@@ -211,7 +210,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
             <div key={stat.channel}>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-sm font-medium">{getChannelLabel(stat.channel)}</span>
-                <span className="text-sm font-bold">{currencySymbol}{formatNumber(stat.value)}</span>
+                <span className="text-sm font-bold">{formatCurrency(stat.value, 'CNY', language)}</span>
               </div>
               <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                 <div

@@ -10,6 +10,7 @@ import { loadItemImage, loadState, savePreferences, saveState, exportCSV } from 
 import { buildExportZip, importBackupFile } from './services/backupService';
 import { deleteWebDav, downloadWebDav, existsWebDav, uploadWebDav } from './services/webdavService';
 import { AI_PROVIDERS, getModelMeta, getProviderMeta, getProviderModels } from './services/aiProviders';
+import { formatCurrency } from './utils/format';
 import { useDebouncedPersist } from './hooks/useDebouncedPersist';
 import OwnedTabContainer from './components/OwnedTabContainer';
 import WishlistTabContainer from './components/WishlistTabContainer';
@@ -63,7 +64,7 @@ const App: React.FC = () => {
   const transientUrlTimeoutsRef = useRef<number[]>([]);
   const appMountedRef = useRef(true);
   const [mountedTabs, setMountedTabs] = useState({ owned: true, wishlist: false, stats: false });
-  const [isUiTransitionPending, startUiTransition] = useTransition();
+  const [, startUiTransition] = useTransition();
 
   type DialogState = {
     type: 'alert' | 'confirm' | 'prompt';
@@ -81,8 +82,6 @@ const App: React.FC = () => {
 
   const mergeUnique = (values: string[]) =>
     Array.from(new Set(values.map(v => v.trim()).filter(Boolean)));
-
-  const currencySymbol = '\u00a5';
 
   const t = (key: string, fallback: string = key) =>
     (TEXTS as any)?.[key]?.[language]
@@ -267,6 +266,7 @@ const App: React.FC = () => {
       }
       const file = new File([zipBlob], entry.zipPath.split('/').pop() || 'backup.zip', { type: 'application/zip' });
       const newItems = await importBackupFile(file);
+      if (!appMountedRef.current) return false;
       if (mode === 'overwrite') {
         const normalized = newItems.map(raw => prepareItemForState(raw as Item, { cacheImage: true }));
         setItems(normalized);
@@ -462,13 +462,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const getItemImageSync = useCallback(
-    (item: Partial<Item> | null | undefined) => {
-      if (!item) return undefined;
-      return item.image || (item.id ? itemImagesRef.current[item.id] : undefined);
-    },
-    []
-  );
 
   const channelLabelMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -500,10 +493,6 @@ const App: React.FC = () => {
     return map;
   }, [channels]);
 
-  const getChannelLabel = useCallback(
-    (channel: string) => channelLabelMap.get(channel) || channel,
-    [channelLabelMap]
-  );
 
   const normalizeChannelValue = useCallback(
     (value?: string) => {
@@ -1118,13 +1107,6 @@ const App: React.FC = () => {
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, usageCount: (i.usageCount || 0) + 1 } : i));
   }, []);
 
-  const handleClearFilters = () => {
-    setFilterDateStart('');
-    setFilterDateEnd('');
-    setFilterPriceMin('');
-    setFilterPriceMax('');
-  };
-
 
   // Managed Data Handlers
   const handleAddCategory = async () => {
@@ -1447,6 +1429,7 @@ const App: React.FC = () => {
     if (!file) return;
     try {
       const newItems = await importBackupFile(file);
+      if (!appMountedRef.current) return;
       setItems(prev => {
         const byId = new Map<string, Item>(prev.map(item => [item.id, item]));
         const signature = (item: Item) => [
@@ -1485,34 +1468,36 @@ const App: React.FC = () => {
   const handleWebDavUpload = async () => {
     const { serverUrl, username, password } = webdavConfig;
     if (!serverUrl.trim() || !username.trim() || !password.trim()) {
-      await openAlert(t('webdavMissing', 'WebDAV ?????'));
+      await openAlert(t('webdavMissing'));
       return;
     }
 
     try {
-      const csvContent = `﻿${exportCSV(items)}`;
+      const csvContent = `\uFEFF${exportCSV(items)}`;
       const { blob } = await buildExportZip(items, csvContent, webdavIncludeImages, getResolvedItemImage);
       if (!shouldCommitBackup(items.length)) {
-        await openAlert(t('webdavUploadFailed', 'WebDAV ????'));
+        await openAlert(t('webdavUploadFailed'));
         return;
       }
       const id = buildBackupId();
       const entry = await createSnapshotEntry(blob, id);
       await commitSnapshot(webdavConfig, entry, blob);
+      if (!appMountedRef.current) return;
       setLastBackupLocalDate(getLocalDateKey());
       await refreshWebDavHistory();
+      if (!appMountedRef.current) return;
       setSelectedWebdavBackupId(entry.id);
-      await openAlert(t('webdavUploadSuccess', 'WebDAV ????'));
+      await openAlert(t('webdavUploadSuccess'));
     } catch (e) {
       console.warn('WebDAV upload failed:', e);
-      await openAlert(t('webdavUploadFailed', 'WebDAV ????'));
+      await openAlert(t('webdavUploadFailed'));
     }
   };
 
   const handleWebDavDownload = async () => {
     const { serverUrl, username, password } = webdavConfig;
     if (!serverUrl.trim() || !username.trim() || !password.trim()) {
-      await openAlert(t('webdavMissing', 'WebDAV ?????'));
+      await openAlert(t('webdavMissing'));
       return;
     }
     try {
@@ -1534,15 +1519,16 @@ const App: React.FC = () => {
       }
 
       const restored = await tryRestoreSnapshot(webdavConfig, selected, mode);
+      if (!appMountedRef.current) return;
       if (restored) {
-        await openAlert(t('webdavDownloadSuccess', 'WebDAV ????'));
+        await openAlert(t('webdavDownloadSuccess'));
         return;
       }
 
-      await openAlert(t('webdavDownloadFailed', 'WebDAV ????'));
+      await openAlert(t('webdavDownloadFailed'));
     } catch (e) {
       console.warn('WebDAV download failed:', e);
-      await openAlert(t('webdavDownloadFailed', 'WebDAV ????'));
+      await openAlert(t('webdavDownloadFailed'));
     }
   };
   // --- Computed ---
@@ -1558,28 +1544,8 @@ const App: React.FC = () => {
     ? getDefaultBaseUrl(aiConfig.provider, selectedModel)
     : '';
   const ownedItems = useMemo(() => items.filter(i => i.type === 'owned'), [items]);
+  const wishlistItems = useMemo(() => items.filter(i => i.type === 'wishlist'), [items]);
   const totalValue = useMemo(() => ownedItems.reduce((acc, curr) => acc + curr.price, 0), [ownedItems]);
-  const activeTitle = activeTab === 'profile'
-    ? TEXTS.tabMine[language]
-    : activeTab === 'stats'
-      ? TEXTS.tabStats[language]
-      : activeTab === 'wishlist'
-        ? TEXTS.tabWishlist[language]
-        : TEXTS.tabOwned[language];
-
-  const getStatusLabel = useCallback((status: string) => {
-    if (status === 'new') return TEXTS.statusNew[language];
-    if (status === 'used') return TEXTS.statusUsed[language];
-    if (status === 'broken') return TEXTS.statusBroken[language];
-    if (status === 'sold') return TEXTS.statusSold[language];
-    if (status === 'emptied') return TEXTS.statusEmptied[language];
-    return status;
-  }, [language]);
-
-  const getCategoryLabel = useCallback((category: string) => {
-    const config = CATEGORY_CONFIG[category];
-    return config ? TEXTS[config.labelKey][language] : category;
-  }, [language]);
 
   const handleChangeLanguage = useCallback((nextLanguage: Language) => {
     if (nextLanguage === language) return;
@@ -1610,33 +1576,12 @@ const App: React.FC = () => {
              <p className="opacity-60 text-sm">{TEXTS.tabStats[language]}</p>
         ) : activeTab === 'owned' ? (
             <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-light">{currencySymbol}{formatNumber(totalValue)}</span>
+                <span className="text-4xl font-light">{formatCurrency(totalValue, 'CNY', language)}</span>
                 <span className="text-sm opacity-60 uppercase tracking-widest font-semibold">{TEXTS.totalValue[language]}</span>
             </div>
         ) : null}
       </div>
 
-      {/* STATISTICS TAB */}
-      {activeTab === 'stats' && (
-        <Suspense fallback={<div className="p-6 pb-32"></div>}>
-          <StatsTab
-            stats={stats}
-            language={language}
-            TEXTS={TEXTS}
-            ICONS={ICONS}
-            CATEGORY_CONFIG={CATEGORY_CONFIG}
-            themeColors={themeColors}
-            currencySymbol={currencySymbol}
-            formatNumber={formatNumber}
-            toNumber={toNumber}
-            getStatusLabel={getStatusLabel}
-            getCategoryLabel={getCategoryLabel}
-            getChannelLabel={getChannelLabel}
-            topN={topN}
-            onTopNChange={setTopN}
-          />
-        </Suspense>
-      )}
 
       {/* PROFILE TAB (Simplified) */}
       {activeTab === 'profile' && (
@@ -1731,10 +1676,10 @@ const App: React.FC = () => {
                 {(['zh-CN', 'zh-TW', 'en', 'ja'] as Language[]).map(l => (
                   <button 
                     key={l}
-                    onClick={() => setLanguage(l)}
+                    onClick={() => handleChangeLanguage(l)}
                     className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${language === l ? `${themeColors.primary} text-white shadow-md` : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'}`}
                   >
-                    {l === 'zh-CN' ? '简体中文' : l === 'zh-TW' ? '繁體中文' : l === 'en' ? 'English' : '日本語'}
+                    {l === 'zh-CN' ? TEXTS.langZhCN[language] : l === 'zh-TW' ? TEXTS.langZhTW[language] : l === 'en' ? TEXTS.langEn[language] : TEXTS.langJa[language]}
                   </button>
                 ))}
               </div>
@@ -2148,161 +2093,97 @@ const App: React.FC = () => {
       </SheetModal>
       </Suspense>
 
-      {/* OWNED / WISHLIST VIEWS */}
-      {(activeTab === 'owned' || activeTab === 'wishlist') && (
-        <>
-            {/* Search & Advanced Filters */}
-            <div className="px-6 mb-3 space-y-3">
-                <div className="flex gap-2">
-                    <div className="relative flex-1">
-                        <ICONS.Search size={16} className="absolute left-4 top-4 text-gray-400" />
-                        <input
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder={TEXTS.searchPlaceholder[language]}
-                            className="w-full p-4 pl-10 bg-white dark:bg-slate-900 dark:text-white rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm"
-                        />
-                    </div>
-                    <button
-                        onClick={() => setShowAdvancedFilters(prev => !prev)}
-                        className="px-4 py-3 rounded-2xl bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 text-xs font-semibold flex items-center gap-2"
-                    >
-                        <ICONS.SlidersHorizontal size={16} />
-                        {TEXTS.advancedFilter[language]}
-                    </button>
-                </div>
 
-                {showAdvancedFilters && (
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                          <div>
-                              <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.dateStart[language]}</label>
-                              <input
-                                  type="date"
-                                  value={filterDateStart}
-                                  onChange={(e) => setFilterDateStart(e.target.value)}
-                                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-white rounded-xl border border-gray-200 dark:border-slate-700 [color-scheme:light] dark:[color-scheme:dark]"
-                              />
-                          </div>
-                          <div>
-                              <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.dateEnd[language]}</label>
-                              <input
-                                  type="date"
-                                  value={filterDateEnd}
-                                  onChange={(e) => setFilterDateEnd(e.target.value)}
-                                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-white rounded-xl border border-gray-200 dark:border-slate-700 [color-scheme:light] dark:[color-scheme:dark]"
-                              />
-                          </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                          <div>
-                              <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.priceMin[language]}</label>
-                              <input
-                                  type="number"
-                                  value={filterPriceMin}
-                                  onChange={(e) => setFilterPriceMin(e.target.value)}
-                                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-white rounded-xl border border-gray-200 dark:border-slate-700"
-                              />
-                          </div>
-                          <div>
-                              <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.priceMax[language]}</label>
-                              <input
-                                  type="number"
-                                  value={filterPriceMax}
-                                  onChange={(e) => setFilterPriceMax(e.target.value)}
-                                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-white rounded-xl border border-gray-200 dark:border-slate-700"
-                              />
-                          </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <button
-                          onClick={handleClearFilters}
-                          className="text-xs font-semibold text-gray-500 dark:text-gray-300 px-3 py-2 rounded-full bg-gray-100 dark:bg-slate-800"
-                        >
-                          {TEXTS.clearFilter[language]}
-                        </button>
-                      </div>
-                  </div>
-                )}
-            </div>
-
-            {/* Filter Chips (Dynamic: Status for Owned, Category for Wishlist) */}
-            <div className="px-6 mb-2">
-                <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
-                    <button
-                        onClick={() => setActiveFilter('all')}
-                        className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-                            activeFilter === 'all'
-                            ? `${themeColors.primary} text-white shadow-md`
-                            : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400'
-                        }`}
-                    >
-                        {TEXTS.filterAll[language]}
-                    </button>
-                    {availableFilters.map(filterVal => {
-                        const FilterIcon = getFilterIcon(filterVal);
-                        return (
-                            <button
-                                key={filterVal}
-                                onClick={() => setActiveFilter(filterVal)}
-                                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                                    activeFilter === filterVal
-                                    ? `${themeColors.primary} text-white shadow-md`
-                                    : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400'
-                                }`}
-                            >
-                                {FilterIcon && <FilterIcon size={12} />}
-                                {getFilterLabel(filterVal)}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            <Timeline 
-              items={finalDisplayItems} 
-              theme={theme} 
+      <div
+        className={mountedTabs.owned ? (activeTab === 'owned' ? 'block' : 'hidden') : 'hidden'}
+        aria-hidden={activeTab !== 'owned'}
+      >
+        {mountedTabs.owned && (
+          <TabErrorBoundary
+            tabName="owned"
+            title={TEXTS.notice[language]}
+            message={TEXTS.noData[language]}
+            retryLabel={TEXTS.ok[language]}
+            accentClassName={themeColors.primary}
+          >
+            <OwnedTabContainer
+              items={ownedItems}
+              theme={theme}
               language={language}
+              statuses={statuses}
+              aiEnabled={aiEnabled}
+              isActive={activeTab === 'owned'}
               onEdit={handleEditItem}
               onDelete={handleDeleteItem}
               onAddUsage={handleAddUsage}
               onRequestImage={getResolvedItemImage}
               onPreviewImage={openImagePreview}
+              onOpenAdd={handleOpenAdd}
             />
-        </>
-      )}
+          </TabErrorBoundary>
+        )}
+      </div>
 
-      {/* Floating Action Buttons (Split) - Hide on Profile and Stats tab */}
-      {(activeTab === 'owned' || activeTab === 'wishlist') && (
-        <div className="fixed right-6 bottom-28 z-40 flex flex-col items-end gap-4 pointer-events-none">
-            {/* Manual Add - Secondary (Only show if AI is enabled) */}
-            {aiEnabled && (
-                <div className="flex items-center gap-2 pointer-events-auto">
-                <button
-                    onClick={() => handleOpenAdd('manual')}
-                    className="flex items-center justify-center w-14 h-14 rounded-[1.5rem] shadow-lg bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 transition-transform hover:scale-105 active:scale-95 border border-gray-100 dark:border-slate-700"
-                >
-                    <ICONS.Edit3 size={24} />
-                </button>
-                </div>
-            )}
+      <div
+        className={mountedTabs.wishlist ? (activeTab === 'wishlist' ? 'block' : 'hidden') : 'hidden'}
+        aria-hidden={activeTab !== 'wishlist'}
+      >
+        {mountedTabs.wishlist && (
+          <TabErrorBoundary
+            tabName="wishlist"
+            title={TEXTS.notice[language]}
+            message={TEXTS.noData[language]}
+            retryLabel={TEXTS.ok[language]}
+            accentClassName={themeColors.primary}
+          >
+            <WishlistTabContainer
+              items={wishlistItems}
+              theme={theme}
+              language={language}
+              categories={categories}
+              aiEnabled={aiEnabled}
+              isActive={activeTab === 'wishlist'}
+              onEdit={handleEditItem}
+              onDelete={handleDeleteItem}
+              onAddUsage={handleAddUsage}
+              onRequestImage={getResolvedItemImage}
+              onPreviewImage={openImagePreview}
+              onOpenAdd={handleOpenAdd}
+            />
+          </TabErrorBoundary>
+        )}
+      </div>
 
-            {/* Primary Add Button (Acts as AI if enabled, or Manual if AI disabled) */}
-            <div className="flex items-center gap-2 pointer-events-auto">
-                <button
-                    onClick={() => handleOpenAdd(aiEnabled ? 'ai' : 'manual')}
-                    className={`flex items-center justify-center w-14 h-14 rounded-[1.5rem] shadow-xl text-white transition-transform hover:scale-105 active:scale-95 ${themeColors.primary}`}
-                >
-                    {aiEnabled ? <ICONS.Sparkles size={24} /> : <ICONS.Plus size={28} />}
-                </button>
-            </div>
-        </div>
-      )}
+      <div
+        className={mountedTabs.stats ? (activeTab === 'stats' ? 'block' : 'hidden') : 'hidden'}
+        aria-hidden={activeTab !== 'stats'}
+      >
+        {mountedTabs.stats && (
+          <TabErrorBoundary
+            tabName="stats"
+            title={TEXTS.notice[language]}
+            message={TEXTS.noData[language]}
+            retryLabel={TEXTS.ok[language]}
+            accentClassName={themeColors.primary}
+          >
+            <StatsTabContainer
+              items={items}
+              categories={categories}
+              channels={channels}
+              theme={theme}
+              language={language}
+              isActive={activeTab === 'stats'}
+              formatNumber={formatNumber}
+              toNumber={toNumber}
+            />
+          </TabErrorBoundary>
+        )}
+      </div>
 
       {/* Floating Bottom Navigation */}
       <div className="fixed bottom-6 left-6 right-6 h-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl rounded-full z-30 flex items-center justify-around px-2 border border-white/50 dark:border-slate-800/50 transition-colors">
         <button 
-            onClick={() => setActiveTab('owned')}
+            onClick={() => handleChangeTab('owned')}
             className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'owned' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'owned' ? themeColors.container : 'bg-transparent'}`}>
@@ -2312,7 +2193,7 @@ const App: React.FC = () => {
         </button>
         
         <button 
-            onClick={() => setActiveTab('wishlist')}
+            onClick={() => handleChangeTab('wishlist')}
             className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'wishlist' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'wishlist' ? themeColors.container : 'bg-transparent'}`}>
@@ -2322,7 +2203,7 @@ const App: React.FC = () => {
         </button>
 
         <button 
-            onClick={() => setActiveTab('stats')}
+            onClick={() => handleChangeTab('stats')}
             className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'stats' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'stats' ? themeColors.container : 'bg-transparent'}`}>
@@ -2332,7 +2213,7 @@ const App: React.FC = () => {
         </button>
 
         <button 
-            onClick={() => setActiveTab('profile')}
+            onClick={() => handleChangeTab('profile')}
             className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'profile' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'profile' ? themeColors.container : 'bg-transparent'}`}>
@@ -2410,6 +2291,7 @@ const App: React.FC = () => {
 };
 
 export default App;
+
 
 
 

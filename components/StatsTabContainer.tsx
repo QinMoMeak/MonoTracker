@@ -1,4 +1,4 @@
-﻿import React, { Suspense, lazy, useCallback, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useMemo, useState } from 'react';
 import { CATEGORY_CONFIG, ICONS, TEXTS, THEMES } from '../constants';
 import { Item, Language, ThemeColor } from '../types';
 
@@ -179,7 +179,6 @@ const StatsTabContainer: React.FC<Props> = ({
         ICONS={ICONS}
         CATEGORY_CONFIG={CATEGORY_CONFIG}
         themeColors={themeColors}
-        currencySymbol="\u00a5"
         formatNumber={formatNumber}
         toNumber={toNumber}
         getStatusLabel={getStatusLabel}
