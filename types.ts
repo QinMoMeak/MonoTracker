@@ -49,6 +49,7 @@ export interface Item {
   note: string;
   link: string;
   image?: string; // Base64
+  imageThumb?: string;
   hasImage?: boolean;
   usageCount: number; // For manual usage tracking
   discountRate?: number; // Calculated or manual

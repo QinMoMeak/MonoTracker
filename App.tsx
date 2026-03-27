@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense, lazy, useTransition } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -6,20 +6,23 @@ import { Share } from '@capacitor/share';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { AiConfig, AiCredentials, AiProvider, AiRuntimeConfig, Item, Language, ThemeColor, Tab, AppearanceMode, WebDavConfig, RestoreMode } from './types';
 import { THEMES, TEXTS, ICONS, INITIAL_ITEMS, CATEGORY_CONFIG, DEFAULT_CHANNELS, DEFAULT_STATUSES } from './constants';
-import { loadItemImage, loadState, saveState, exportCSV } from './services/storageService';
+import { loadItemImage, loadState, savePreferences, saveState, exportCSV } from './services/storageService';
 import { buildExportZip, importBackupFile } from './services/backupService';
 import { deleteWebDav, downloadWebDav, existsWebDav, uploadWebDav } from './services/webdavService';
 import { AI_PROVIDERS, getModelMeta, getProviderMeta, getProviderModels } from './services/aiProviders';
-import Timeline from './components/Timeline';
-import AddItemModal from './components/AddItemModal';
-import Dialog from './components/Dialog';
-import SheetModal from './components/SheetModal';
-const StatsTab = lazy(() => import('./components/StatsTab'));
+import { formatCurrency } from './utils/format';
+import { useDebouncedPersist } from './hooks/useDebouncedPersist';
+import OwnedTabContainer from './components/OwnedTabContainer';
+import WishlistTabContainer from './components/WishlistTabContainer';
+import StatsTabContainer from './components/StatsTabContainer';
+import TabErrorBoundary from './components/TabErrorBoundary';
+const AddItemModal = lazy(() => import('./components/AddItemModal'));
+const Dialog = lazy(() => import('./components/Dialog'));
+const SheetModal = lazy(() => import('./components/SheetModal'));
 
 const App: React.FC = () => {
   // --- State ---
   const [items, setItems] = useState<Item[]>([]);
-  const [itemImages, setItemImages] = useState<Record<string, string>>({});
   const [language, setLanguage] = useState<Language>('zh-CN');
   const [theme, setTheme] = useState<ThemeColor>('blue');
   const [appearance, setAppearance] = useState<AppearanceMode>('system');
@@ -38,17 +41,7 @@ const App: React.FC = () => {
   // Export Modal State
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportData, setExportData] = useState('');
-  
-  // Generic filter state: 'all' or specific value (status for owned, category for wishlist)
-  const [activeFilter, setActiveFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [filterDateStart, setFilterDateStart] = useState('');
-  const [filterDateEnd, setFilterDateEnd] = useState('');
-  const [filterPriceMin, setFilterPriceMin] = useState('');
-  const [filterPriceMax, setFilterPriceMax] = useState('');
-  const [topN, setTopN] = useState(5);
-  
+
   // Managed Data State
   const [categories, setCategories] = useState<string[]>(Object.keys(CATEGORY_CONFIG));
   const [statuses, setStatuses] = useState<string[]>(DEFAULT_STATUSES);
@@ -66,8 +59,12 @@ const App: React.FC = () => {
   const [webdavHistoryLoading, setWebdavHistoryLoading] = useState(false);
   const [selectedWebdavBackupId, setSelectedWebdavBackupId] = useState('');
   const itemImagesRef = useRef<Record<string, string>>({});
+  const imageCacheOrderRef = useRef<string[]>([]);
   const pendingImageLoadsRef = useRef<Map<string, Promise<string | undefined>>>(new Map());
-  const saveTimeoutRef = useRef<number | null>(null);
+  const transientUrlTimeoutsRef = useRef<number[]>([]);
+  const appMountedRef = useRef(true);
+  const [mountedTabs, setMountedTabs] = useState({ owned: true, wishlist: false, stats: false });
+  const [, startUiTransition] = useTransition();
 
   type DialogState = {
     type: 'alert' | 'confirm' | 'prompt';
@@ -86,13 +83,34 @@ const App: React.FC = () => {
   const mergeUnique = (values: string[]) =>
     Array.from(new Set(values.map(v => v.trim()).filter(Boolean)));
 
-  const currencySymbol = '\u00a5';
-
   const t = (key: string, fallback: string = key) =>
     (TEXTS as any)?.[key]?.[language]
     ?? (TEXTS as any)?.[key]?.['zh-CN']
     ?? (TEXTS as any)?.[key]?.['en']
     ?? fallback;
+
+  const MAX_IMAGE_CACHE = 96;
+
+  const touchCachedImage = useCallback((id: string, image: string) => {
+    if (!id || !image) return;
+    itemImagesRef.current[id] = image;
+    const nextOrder = imageCacheOrderRef.current.filter(entryId => entryId !== id);
+    nextOrder.push(id);
+
+    while (nextOrder.length > MAX_IMAGE_CACHE) {
+      const evictedId = nextOrder.shift();
+      if (evictedId) {
+        delete itemImagesRef.current[evictedId];
+      }
+    }
+
+    imageCacheOrderRef.current = nextOrder;
+  }, []);
+
+  const dropCachedImage = useCallback((id: string) => {
+    delete itemImagesRef.current[id];
+    imageCacheOrderRef.current = imageCacheOrderRef.current.filter(entryId => entryId !== id);
+  }, []);
 
   const WEBDAV_BACKUP_ROOT = 'TrackerBackups';
   const WEBDAV_SNAPSHOTS_DIR = `${WEBDAV_BACKUP_ROOT}/snapshots`;
@@ -248,8 +266,9 @@ const App: React.FC = () => {
       }
       const file = new File([zipBlob], entry.zipPath.split('/').pop() || 'backup.zip', { type: 'application/zip' });
       const newItems = await importBackupFile(file);
+      if (!appMountedRef.current) return false;
       if (mode === 'overwrite') {
-        const normalized = newItems.map(raw => normalizeItem(raw as Item));
+        const normalized = newItems.map(raw => prepareItemForState(raw as Item, { cacheImage: true }));
         setItems(normalized);
       } else {
         setItems(prev => mergeImportedItems(prev, newItems));
@@ -277,6 +296,8 @@ const App: React.FC = () => {
     return entry.id;
   };
 
+  const webdavHistoryRequestRef = useRef(0);
+
   const fetchWebDavHistory = async (config: WebDavConfig) => {
     const manifest = await readWebDavManifest(config);
     const history = manifest?.history || [];
@@ -287,38 +308,52 @@ const App: React.FC = () => {
     return readyChecks.filter(Boolean) as WebDavManifestEntry[];
   };
 
-  const refreshWebDavHistory = async () => {
+  const refreshWebDavHistory = useCallback(async () => {
+    const requestId = webdavHistoryRequestRef.current + 1;
+    webdavHistoryRequestRef.current = requestId;
     const { serverUrl, username, password } = webdavConfig;
     if (!serverUrl.trim() || !username.trim() || !password.trim()) {
-      setWebdavHistory([]);
-      setSelectedWebdavBackupId('');
-      setWebdavHistoryLoading(false);
+      if (appMountedRef.current && webdavHistoryRequestRef.current === requestId) {
+        setWebdavHistory([]);
+        setSelectedWebdavBackupId('');
+        setWebdavHistoryLoading(false);
+      }
       return [];
     }
     if (!Capacitor.isNativePlatform()) {
-      setWebdavHistory([]);
-      setSelectedWebdavBackupId('');
-      setWebdavHistoryLoading(false);
+      if (appMountedRef.current && webdavHistoryRequestRef.current === requestId) {
+        setWebdavHistory([]);
+        setSelectedWebdavBackupId('');
+        setWebdavHistoryLoading(false);
+      }
       return [];
     }
-    setWebdavHistoryLoading(true);
+    if (appMountedRef.current && webdavHistoryRequestRef.current === requestId) {
+      setWebdavHistoryLoading(true);
+    }
     try {
       const readyHistory = await fetchWebDavHistory(webdavConfig);
       const display = readyHistory.slice(0, 3);
-      setWebdavHistory(display);
-      setSelectedWebdavBackupId(prev =>
-        display.some(entry => entry.id === prev) ? prev : (display[0]?.id || '')
-      );
+      if (appMountedRef.current && webdavHistoryRequestRef.current === requestId) {
+        setWebdavHistory(display);
+        setSelectedWebdavBackupId(prev =>
+          display.some(entry => entry.id === prev) ? prev : (display[0]?.id || '')
+        );
+      }
       return display;
     } catch (e) {
       console.warn('WebDAV history load failed:', e);
-      setWebdavHistory([]);
-      setSelectedWebdavBackupId('');
+      if (appMountedRef.current && webdavHistoryRequestRef.current === requestId) {
+        setWebdavHistory([]);
+        setSelectedWebdavBackupId('');
+      }
       return [];
     } finally {
-      setWebdavHistoryLoading(false);
+      if (appMountedRef.current && webdavHistoryRequestRef.current === requestId) {
+        setWebdavHistoryLoading(false);
+      }
     }
-  };
+  }, [webdavConfig]);
 
   const formatNumber = (value: number, maximumFractionDigits = 2) => {
     if (!Number.isFinite(value)) return '0';
@@ -349,7 +384,7 @@ const App: React.FC = () => {
     return new Date().toISOString().split('T')[0];
   };
 
-  const normalizeItem = (item: Item): Item => {
+  const normalizeItem = useCallback((item: Item): Item => {
     const safePrice = toNumber(item.price);
     const safeMsrp = toNumber(item.msrp);
     const safeUsage = toNumber(item.usageCount);
@@ -371,9 +406,24 @@ const App: React.FC = () => {
       status: item.status || 'new',
       storeName: item.storeName || '',
       purchaseDate: normalizeDate(item.purchaseDate),
-      hasImage: Boolean(item.image || item.hasImage)
+      imageThumb: item.imageThumb || item.image,
+      hasImage: Boolean(item.image || item.imageThumb || item.hasImage)
     };
-  };
+  }, []);
+
+  const prepareItemForState = useCallback((item: Item, options?: { cacheImage?: boolean }) => {
+    const normalized = normalizeItem(item);
+    const nextImage = typeof normalized.image === 'string' && normalized.image ? normalized.image : undefined;
+    if (options?.cacheImage && nextImage) {
+      touchCachedImage(normalized.id, nextImage);
+    }
+    return {
+      ...normalized,
+      image: undefined,
+      imageThumb: normalized.imageThumb || nextImage,
+      hasImage: Boolean(normalized.hasImage || nextImage)
+    } as Item;
+  }, [normalizeItem, touchCachedImage]);
 
   const getResolvedItemImage = useCallback(
     async (item: Partial<Item> | null | undefined) => {
@@ -389,8 +439,7 @@ const App: React.FC = () => {
       const task = loadItemImage(item.id)
         .then(image => {
           if (image) {
-            itemImagesRef.current = { ...itemImagesRef.current, [item.id!]: image };
-            setItemImages(prev => (prev[item.id!] === image ? prev : { ...prev, [item.id!]: image }));
+            touchCachedImage(item.id!, image);
           }
           return image;
         })
@@ -401,16 +450,18 @@ const App: React.FC = () => {
       pendingImageLoadsRef.current.set(item.id, task);
       return task;
     },
-    []
+    [touchCachedImage]
   );
 
-  const getItemImageSync = useCallback(
-    (item: Partial<Item> | null | undefined) => {
-      if (!item) return undefined;
-      return item.image || (item.id ? itemImagesRef.current[item.id] : undefined);
-    },
-    []
-  );
+  useEffect(() => {
+    appMountedRef.current = true;
+    return () => {
+      appMountedRef.current = false;
+      transientUrlTimeoutsRef.current.forEach(handle => window.clearTimeout(handle));
+      transientUrlTimeoutsRef.current = [];
+    };
+  }, []);
+
 
   const channelLabelMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -429,17 +480,26 @@ const App: React.FC = () => {
     return map;
   }, [channelLabelMap]);
 
-  const getChannelLabel = useCallback(
-    (channel: string) => channelLabelMap.get(channel) || channel,
-    [channelLabelMap]
-  );
+  const channelAliasMap = useMemo(() => {
+    const map = new Map<string, string>();
+    channels.forEach(channel => {
+      map.set(channel, channel);
+      const key = `chan${channel}`;
+      const translations = TEXTS[key];
+      if (translations) {
+        Object.values(translations).forEach(label => map.set(label, channel));
+      }
+    });
+    return map;
+  }, [channels]);
+
 
   const normalizeChannelValue = useCallback(
     (value?: string) => {
       if (!value) return value;
-      return channelLabelToKeyMap.get(value) || value;
+      return channelAliasMap.get(value) || channelLabelToKeyMap.get(value) || value;
     },
-    [channelLabelToKeyMap]
+    [channelAliasMap, channelLabelToKeyMap]
   );
 
   const getDefaultModel = (provider: AiProvider) => {
@@ -491,10 +551,9 @@ const App: React.FC = () => {
       const loaded = await loadState();
       if (!isMounted) return;
       itemImagesRef.current = {};
-      setItemImages({});
 
       if (loaded.items) {
-          const migratedItems = loaded.items.map(normalizeItem).map(i => ({
+          const migratedItems = loaded.items.map(raw => prepareItemForState(raw, { cacheImage: true })).map(i => ({
               ...i,
               category: i.category || 'other'
           }));
@@ -558,50 +617,71 @@ const App: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [prepareItemForState]);
 
   useEffect(() => {
     if (!isLoaded) return;
     SplashScreen.hide().catch(() => {});
   }, [isLoaded]);
 
-  // --- Persistence ---
-  useEffect(() => {
-    // Prevent saving if we haven't loaded yet to avoid overwriting with initial empty state
-    if (!isLoaded) return;
-    if (saveTimeoutRef.current) {
-      window.clearTimeout(saveTimeoutRef.current);
-    }
+  const persistedDataSnapshot = useMemo(() => ({
+    items,
+    categories,
+    statuses,
+    channels
+  }), [items, categories, statuses, channels]);
 
-    saveTimeoutRef.current = window.setTimeout(() => {
-      void saveState({ items, language, theme, appearance, aiConfig, categories, statuses, channels, webdav: webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages, webdavRestoreMode });
-    }, 250);
+  const persistedPreferencesSnapshot = useMemo(() => ({
+    language,
+    theme,
+    appearance,
+    aiConfig,
+    webdav: webdavConfig,
+    autoBackupEnabled,
+    lastBackupLocalDate,
+    webdavIncludeImages,
+    webdavRestoreMode
+  }), [language, theme, appearance, aiConfig, webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages, webdavRestoreMode]);
 
-    return () => {
-      if (saveTimeoutRef.current) {
-        window.clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = null;
-      }
-    };
-  }, [items, language, theme, appearance, aiConfig, categories, statuses, channels, webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages, webdavRestoreMode, isLoaded]);
+  const getPersistImageOverrides = useCallback(() => ({ ...itemImagesRef.current }), []);
+  const getEmptyPersistImageOverrides = useCallback(() => ({}), []);
+
+  const persistSnapshot = useCallback(async (snapshot: typeof persistedDataSnapshot, imageOverrides: Record<string, string>) => {
+    await saveState(snapshot, imageOverrides);
+  }, []);
+
+  const persistPreferencesSnapshot = useCallback(async (snapshot: typeof persistedPreferencesSnapshot) => {
+    await savePreferences(snapshot);
+  }, []);
+
+  useDebouncedPersist({
+    enabled: isLoaded,
+    snapshot: persistedDataSnapshot,
+    delay: 1600,
+    getImageOverrides: getPersistImageOverrides,
+    persist: persistSnapshot
+  });
+
+  useDebouncedPersist({
+    enabled: isLoaded,
+    snapshot: persistedPreferencesSnapshot,
+    delay: 450,
+    getImageOverrides: getEmptyPersistImageOverrides,
+    persist: persistPreferencesSnapshot
+  });
 
   useEffect(() => {
     const validIds = new Set(items.map(item => item.id));
-    let changed = false;
     const nextCache: Record<string, string> = {};
 
-    Object.entries(itemImagesRef.current).forEach(([id, image]) => {
+    Object.entries(itemImagesRef.current as Record<string, string>).forEach(([id, image]) => {
       if (validIds.has(id)) {
         nextCache[id] = image;
-      } else {
-        changed = true;
       }
     });
 
-    if (changed) {
-      itemImagesRef.current = nextCache;
-      setItemImages(nextCache);
-    }
+    itemImagesRef.current = nextCache;
+    imageCacheOrderRef.current = imageCacheOrderRef.current.filter(id => Boolean(nextCache[id]));
   }, [items]);
 
   const closeAddModal = () => {
@@ -630,13 +710,19 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!showWebdavModal) return;
-    void refreshWebDavHistory();
-  }, [showWebdavModal]);
+    if (!showWebdavModal) return undefined;
+    let cancelled = false;
+    void refreshWebDavHistory().then(() => {
+      if (cancelled) return;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshWebDavHistory, showWebdavModal]);
 
   const openImagePreview = useCallback(async (item: Item) => {
-    const src = await getResolvedItemImage(item);
-    if (!src) return;
+    const src = await getResolvedItemImage(item) || item.imageThumb;
+    if (!src || !appMountedRef.current) return;
     setPreviewImage({ src, name: item.name });
     window.history.pushState(null, '', '');
   }, [getResolvedItemImage]);
@@ -698,24 +784,33 @@ const App: React.FC = () => {
     if (lastBackupLocalDate === today) return;
     if (autoBackupInFlight.current) return;
 
+    let cancelled = false;
     autoBackupInFlight.current = true;
     buildExportZip(items, undefined, webdavIncludeImages, getResolvedItemImage)
       .then(async ({ blob }) => {
+        if (cancelled || !appMountedRef.current) return;
         const id = buildBackupId();
         const entry = await createSnapshotEntry(blob, id);
         await commitSnapshot(webdavConfig, entry, blob);
+        if (cancelled || !appMountedRef.current) return;
         setLastBackupLocalDate(today);
         await refreshWebDavHistory();
-        setSelectedWebdavBackupId(entry.id);
+        if (!cancelled && appMountedRef.current) {
+          setSelectedWebdavBackupId(entry.id);
+        }
       })
       .catch(err => console.error('Auto WebDAV backup failed', err))
       .finally(() => {
         autoBackupInFlight.current = false;
       });
-  }, [isLoaded, autoBackupEnabled, webdavConfig, items, lastBackupLocalDate, webdavIncludeImages]);
+    return () => {
+      cancelled = true;
+    };
+  }, [getResolvedItemImage, isLoaded, autoBackupEnabled, refreshWebDavHistory, webdavConfig, items, lastBackupLocalDate, webdavIncludeImages]);
 
   useEffect(() => {
-    let backHandle: { remove: () => void } | undefined;
+    let disposed = false;
+    let removeHandle: (() => void) | null = null;
     const handler = ({ canGoBack }: { canGoBack: boolean }) => {
       if (dialog) {
         setDialog(null);
@@ -736,12 +831,19 @@ const App: React.FC = () => {
       }
     };
 
-    CapacitorApp.addListener('backButton', handler).then(handle => {
-      backHandle = handle;
+    void CapacitorApp.addListener('backButton', handler).then(handle => {
+      if (disposed) {
+        void handle.remove();
+        return;
+      }
+      removeHandle = () => {
+        void handle.remove();
+      };
     });
 
     return () => {
-      backHandle?.remove();
+      disposed = true;
+      removeHandle?.();
     };
   }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showQuickStartModal, showDataManageModal, showWebdavModal]);
 
@@ -768,27 +870,6 @@ const App: React.FC = () => {
       document.removeEventListener('backbutton', handleBackButton);
     };
   }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showQuickStartModal, showDataManageModal, showWebdavModal]);
-
-  // Reset filter on tab change
-  useEffect(() => {
-    setActiveFilter('all');
-    setSearchQuery('');
-    setFilterDateStart('');
-    setFilterDateEnd('');
-    setFilterPriceMin('');
-    setFilterPriceMax('');
-    setShowAdvancedFilters(false);
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (activeFilter === 'all') return;
-    if (activeTab === 'owned' && !statuses.includes(activeFilter)) {
-      setActiveFilter('all');
-    }
-    if (activeTab === 'wishlist' && !categories.includes(activeFilter)) {
-      setActiveFilter('all');
-    }
-  }, [activeFilter, activeTab, categories, statuses]);
 
   useEffect(() => {
     if (!aiConfig.provider || aiConfig.provider === 'disabled') return;
@@ -891,77 +972,63 @@ const App: React.FC = () => {
     });
 
   // --- Handlers ---
-  const handleSaveItem = (itemData: Partial<Item>) => {
+  const handleSaveItem = useCallback((itemData: Partial<Item>) => {
     const nextImage = typeof itemData.image === 'string' && itemData.image ? itemData.image : undefined;
     if (itemData.id) {
-        // Edit existing item
-        setItems(prev => prev.map(i => {
-          if (i.id !== itemData.id) return i;
-          const nextPrice = itemData.price ?? i.price ?? 0;
-          const nextQty = Math.max(1, Math.floor(toNumber((itemData.quantity ?? i.quantity) as any) || 1));
-          const nextAvg = itemData.avgPrice ?? Number((nextPrice / nextQty).toFixed(2));
-          return {
-            ...i,
-            ...itemData,
-            quantity: nextQty,
-            avgPrice: nextAvg,
-            hasImage: nextImage ? true : Boolean(itemData.image === undefined ? i.hasImage : false)
-          } as Item;
-        }));
-        if (itemData.id) {
-          if (nextImage) {
-            itemImagesRef.current = { ...itemImagesRef.current, [itemData.id]: nextImage };
-            setItemImages(prev => ({ ...prev, [itemData.id!]: nextImage }));
-          } else if (itemData.image === undefined) {
-            // keep existing cached image
-          } else {
-            const { [itemData.id]: _, ...rest } = itemImagesRef.current;
-            itemImagesRef.current = rest;
-            setItemImages(rest);
-          }
-        }
+      setItems(prev => prev.map(i => {
+        if (i.id !== itemData.id) return i;
+        const nextPrice = itemData.price ?? i.price ?? 0;
+        const nextQty = Math.max(1, Math.floor(toNumber((itemData.quantity ?? i.quantity) as any) || 1));
+        const nextAvg = itemData.avgPrice ?? Number((nextPrice / nextQty).toFixed(2));
+        return prepareItemForState({
+          ...i,
+          ...itemData,
+          quantity: nextQty,
+          avgPrice: nextAvg,
+          hasImage: nextImage ? true : Boolean(itemData.image === undefined ? i.hasImage : false)
+        } as Item, { cacheImage: true });
+      }));
+      if (!nextImage && itemData.image === '') {
+        dropCachedImage(itemData.id);
+      }
     } else {
-        // Create new item
-        const newId = Date.now().toString();
-        const quantity = Math.max(1, Math.floor(toNumber(itemData.quantity as any) || 1));
-        const price = itemData.price || 0;
-        const avgPrice = itemData.avgPrice ?? Number((price / quantity).toFixed(2));
-        const newItem: Item = {
-            id: newId,
-            type: (itemData.type as any) || (activeTab === 'wishlist' ? 'wishlist' : 'owned'),
-            name: itemData.name || TEXTS.unknownItem[language],
-            price,
-            msrp: itemData.msrp || price || 0,
-            quantity,
-            avgPrice,
-            purchaseDate: itemData.purchaseDate || new Date().toISOString().split('T')[0],
-            currency: 'CNY',
-            status: (itemData.status as any) || 'new',
-            category: (itemData.category as any) || 'other',
-            note: itemData.note || '',
-            link: itemData.link || '',
-            storeName: itemData.storeName || '',
-            image: itemData.image,
-            hasImage: Boolean(nextImage),
-            usageCount: itemData.usageCount || 0,
-            discountRate: itemData.discountRate,
-            channel: itemData.channel,
-            priceHistory: itemData.priceHistory || [],
-            valueDisplay: itemData.valueDisplay || 'both'
-        };
-        setItems(prev => [newItem, ...prev]);
-        if (nextImage) {
-          itemImagesRef.current = { ...itemImagesRef.current, [newId]: nextImage };
-          setItemImages(prev => ({ ...prev, [newId]: nextImage }));
-        }
+      const newId = Date.now().toString();
+      const quantity = Math.max(1, Math.floor(toNumber(itemData.quantity as any) || 1));
+      const price = itemData.price || 0;
+      const avgPrice = itemData.avgPrice ?? Number((price / quantity).toFixed(2));
+      const newItem = prepareItemForState({
+        id: newId,
+        type: (itemData.type as any) || (activeTab === 'wishlist' ? 'wishlist' : 'owned'),
+        name: itemData.name || TEXTS.unknownItem[language],
+        price,
+        msrp: itemData.msrp || price || 0,
+        quantity,
+        avgPrice,
+        purchaseDate: itemData.purchaseDate || new Date().toISOString().split('T')[0],
+        currency: 'CNY',
+        status: (itemData.status as any) || 'new',
+        category: (itemData.category as any) || 'other',
+        note: itemData.note || '',
+        link: itemData.link || '',
+        storeName: itemData.storeName || '',
+        image: itemData.image,
+        imageThumb: itemData.imageThumb,
+        hasImage: Boolean(nextImage || itemData.imageThumb),
+        usageCount: itemData.usageCount || 0,
+        discountRate: itemData.discountRate,
+        channel: itemData.channel,
+        priceHistory: itemData.priceHistory || [],
+        valueDisplay: itemData.valueDisplay || 'both'
+      } as Item, { cacheImage: true });
+      setItems(prev => [newItem, ...prev]);
     }
     closeAddModal();
-    // Go back in history to close modal (triggers popstate listener)
     window.history.back();
-  };
+  }, [activeTab, dropCachedImage, language, prepareItemForState]);
 
   const handleEditItem = useCallback(async (item: Item) => {
       const resolvedImage = await getResolvedItemImage(item);
+      if (!appMountedRef.current) return;
       setEditingItem(resolvedImage ? { ...item, image: resolvedImage } : item);
       setInitialAddMode('manual');
       setIsAddModalOpen(true);
@@ -1026,28 +1093,19 @@ const App: React.FC = () => {
     { title: TEXTS.quickStartStep5Title[language], desc: TEXTS.quickStartStep5Desc[language] }
   ];
 
-  const handleDeleteItem = async (id: string) => {
+  const deleteItemById = useCallback((id: string) => {
+    setItems(prev => prev.filter(i => i.id !== id));
+    dropCachedImage(id);
+  }, [dropCachedImage]);
+
+  const handleDeleteItem = useCallback(async (id: string) => {
     const confirmed = await openConfirm(TEXTS.deleteConfirm[language]);
     if (confirmed) deleteItemById(id);
-  };
-
-  const deleteItemById = (id: string) => {
-    setItems(prev => prev.filter(i => i.id !== id));
-    const { [id]: _, ...rest } = itemImagesRef.current;
-    itemImagesRef.current = rest;
-    setItemImages(rest);
-  };
+  }, [deleteItemById, language, openConfirm]);
 
   const handleAddUsage = useCallback((item: Item) => {
       setItems(prev => prev.map(i => i.id === item.id ? { ...i, usageCount: (i.usageCount || 0) + 1 } : i));
   }, []);
-
-  const handleClearFilters = () => {
-    setFilterDateStart('');
-    setFilterDateEnd('');
-    setFilterPriceMin('');
-    setFilterPriceMax('');
-  };
 
 
   // Managed Data Handlers
@@ -1267,7 +1325,11 @@ const App: React.FC = () => {
       try {
           const url = URL.createObjectURL(blob);
           triggerDownload(url);
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          const timeoutHandle = window.setTimeout(() => {
+            URL.revokeObjectURL(url);
+            transientUrlTimeoutsRef.current = transientUrlTimeoutsRef.current.filter(handle => handle !== timeoutHandle);
+          }, 1000);
+          transientUrlTimeoutsRef.current.push(timeoutHandle);
           return;
       } catch (e) {
           console.warn('Blob download failed:', e);
@@ -1348,7 +1410,7 @@ const App: React.FC = () => {
     const bySignature = new Map<string, string>(prev.map(item => [signature(item), item.id]));
 
     incoming.forEach(raw => {
-      const normalized = normalizeItem(raw as Item);
+      const normalized = prepareItemForState(raw as Item, { cacheImage: true });
       const sig = signature(normalized);
       const existingId = byId.has(normalized.id) ? normalized.id : bySignature.get(sig);
       if (existingId && byId.has(existingId)) {
@@ -1367,6 +1429,7 @@ const App: React.FC = () => {
     if (!file) return;
     try {
       const newItems = await importBackupFile(file);
+      if (!appMountedRef.current) return;
       setItems(prev => {
         const byId = new Map<string, Item>(prev.map(item => [item.id, item]));
         const signature = (item: Item) => [
@@ -1381,7 +1444,7 @@ const App: React.FC = () => {
         const bySignature = new Map<string, string>(prev.map(item => [signature(item), item.id]));
 
         newItems.forEach(raw => {
-          const normalized = normalizeItem(raw as Item);
+          const normalized = prepareItemForState(raw as Item, { cacheImage: true });
           const sig = signature(normalized);
           const existingId = byId.has(normalized.id) ? normalized.id : bySignature.get(sig);
           if (existingId && byId.has(existingId)) {
@@ -1405,34 +1468,36 @@ const App: React.FC = () => {
   const handleWebDavUpload = async () => {
     const { serverUrl, username, password } = webdavConfig;
     if (!serverUrl.trim() || !username.trim() || !password.trim()) {
-      await openAlert(t('webdavMissing', 'WebDAV ?????'));
+      await openAlert(t('webdavMissing'));
       return;
     }
 
     try {
-      const csvContent = `﻿${exportCSV(items)}`;
+      const csvContent = `\uFEFF${exportCSV(items)}`;
       const { blob } = await buildExportZip(items, csvContent, webdavIncludeImages, getResolvedItemImage);
       if (!shouldCommitBackup(items.length)) {
-        await openAlert(t('webdavUploadFailed', 'WebDAV ????'));
+        await openAlert(t('webdavUploadFailed'));
         return;
       }
       const id = buildBackupId();
       const entry = await createSnapshotEntry(blob, id);
       await commitSnapshot(webdavConfig, entry, blob);
+      if (!appMountedRef.current) return;
       setLastBackupLocalDate(getLocalDateKey());
       await refreshWebDavHistory();
+      if (!appMountedRef.current) return;
       setSelectedWebdavBackupId(entry.id);
-      await openAlert(t('webdavUploadSuccess', 'WebDAV ????'));
+      await openAlert(t('webdavUploadSuccess'));
     } catch (e) {
       console.warn('WebDAV upload failed:', e);
-      await openAlert(t('webdavUploadFailed', 'WebDAV ????'));
+      await openAlert(t('webdavUploadFailed'));
     }
   };
 
   const handleWebDavDownload = async () => {
     const { serverUrl, username, password } = webdavConfig;
     if (!serverUrl.trim() || !username.trim() || !password.trim()) {
-      await openAlert(t('webdavMissing', 'WebDAV ?????'));
+      await openAlert(t('webdavMissing'));
       return;
     }
     try {
@@ -1454,15 +1519,16 @@ const App: React.FC = () => {
       }
 
       const restored = await tryRestoreSnapshot(webdavConfig, selected, mode);
+      if (!appMountedRef.current) return;
       if (restored) {
-        await openAlert(t('webdavDownloadSuccess', 'WebDAV ????'));
+        await openAlert(t('webdavDownloadSuccess'));
         return;
       }
 
-      await openAlert(t('webdavDownloadFailed', 'WebDAV ????'));
+      await openAlert(t('webdavDownloadFailed'));
     } catch (e) {
       console.warn('WebDAV download failed:', e);
-      await openAlert(t('webdavDownloadFailed', 'WebDAV ????'));
+      await openAlert(t('webdavDownloadFailed'));
     }
   };
   // --- Computed ---
@@ -1477,243 +1543,26 @@ const App: React.FC = () => {
   const baseUrlPlaceholder = aiEnabled && selectedModel
     ? getDefaultBaseUrl(aiConfig.provider, selectedModel)
     : '';
-  
-  // 1. First filter by tab
-  const isListTab = activeTab === 'owned' || activeTab === 'wishlist';
-  const tabItems = useMemo(() => {
-    if (!isListTab) return [];
-    return items.filter(i => i.type === activeTab);
-  }, [items, activeTab, isListTab]);
-
-  // 2. Compute available filter options based on tab
-  const availableFilters = useMemo(() => {
-    if (!isListTab) return [];
-    
-    const options = new Set<string>();
-
-    if (activeTab === 'owned') {
-        // For Owned: Filter by Status
-        statuses.forEach(s => options.add(s));
-        tabItems.forEach(i => {
-            if (i.status) options.add(i.status);
-        });
-    } else if (activeTab === 'wishlist') {
-        // For Wishlist: Filter by Category
-        categories.forEach(c => options.add(c));
-        tabItems.forEach(i => {
-            if (i.category) options.add(i.category);
-        });
-    }
-    
-    return Array.from(options);
-  }, [tabItems, activeTab, categories, statuses, isListTab]);
-
-  // 3. Filter by selected option
-  const finalDisplayItems = useMemo(() => {
-      if (!isListTab) return [];
-      const query = searchQuery.trim().toLowerCase();
-      const minPrice = filterPriceMin ? parseFloat(filterPriceMin) : null;
-      const maxPrice = filterPriceMax ? parseFloat(filterPriceMax) : null;
-
-      return tabItems.filter(item => {
-        if (activeFilter !== 'all') {
-          if (activeTab === 'owned' && item.status !== activeFilter) return false;
-          if (activeTab === 'wishlist' && item.category !== activeFilter) return false;
-        }
-
-        if (query) {
-          const channelLabel = item.channel ? getChannelLabel(item.channel) : '';
-          const haystack = [
-            item.name,
-            item.note,
-            item.link,
-            item.storeName,
-            item.channel,
-            channelLabel,
-            item.status,
-            item.category
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-          if (!haystack.includes(query)) return false;
-        }
-
-        if (filterDateStart && item.purchaseDate < filterDateStart) return false;
-        if (filterDateEnd && item.purchaseDate > filterDateEnd) return false;
-
-        if (minPrice !== null && !Number.isNaN(minPrice) && item.price < minPrice) return false;
-        if (maxPrice !== null && !Number.isNaN(maxPrice) && item.price > maxPrice) return false;
-
-        return true;
-      });
-  }, [
-      tabItems,
-      activeFilter,
-      activeTab,
-      searchQuery,
-      filterDateStart,
-      filterDateEnd,
-      filterPriceMin,
-      filterPriceMax,
-      getChannelLabel,
-      isListTab
-  ]);
-
-  useEffect(() => {
-    if (!isListTab) return;
-    finalDisplayItems
-      .filter(item => item.hasImage && !getItemImageSync(item))
-      .slice(0, 12)
-      .forEach(item => {
-        void getResolvedItemImage(item);
-      });
-  }, [finalDisplayItems, getItemImageSync, getResolvedItemImage, isListTab]);
-  
   const ownedItems = useMemo(() => items.filter(i => i.type === 'owned'), [items]);
+  const wishlistItems = useMemo(() => items.filter(i => i.type === 'wishlist'), [items]);
   const totalValue = useMemo(() => ownedItems.reduce((acc, curr) => acc + curr.price, 0), [ownedItems]);
-  const shouldComputeStats = activeTab === 'stats';
 
-  // --- STATISTICS CALCULATIONS ---
-  const stats = useMemo(() => {
-    if (!shouldComputeStats) {
-      return {
-        totalCount: ownedItems.length,
-        totalVal: totalValue,
-        catStatsByValue: [],
-        catStatsByCount: [],
-        statusStats: [],
-        durationBuckets: { '<1M': 0, '1-6M': 0, '6-12M': 0, '1-3Y': 0, '>3Y': 0 },
-        timelineData: [],
-        monthlySpend: [],
-        channelStats: []
-      };
-    }
-    const totalCount = ownedItems.length;
-    const totalVal = ownedItems.reduce((acc, i) => acc + i.price, 0);
-    const channelLabelFallback = TEXTS.channelUnknown[language];
-    
-    // Category Stats (Value & Count)
-    // Gather all unique categories (both config and custom)
-    const allCats = new Set([...categories, ...ownedItems.map(i => i.category)]);
-    
-    const catStats = Array.from(allCats).map(cat => {
-        const catItems = ownedItems.filter(i => (i.category || 'other') === cat);
-        const val = catItems.reduce((acc, i) => acc + i.price, 0);
-        return {
-            cat,
-            count: catItems.length,
-            value: val,
-            percentVal: totalVal > 0 ? (val / totalVal) * 100 : 0,
-            percentCount: totalCount > 0 ? (catItems.length / totalCount) * 100 : 0
-        };
-    }).filter(s => s.count > 0);
-
-    const catStatsByValue = [...catStats].sort((a, b) => b.value - a.value);
-    const catStatsByCount = [...catStats].sort((a, b) => b.count - a.count);
-
-    // Status Stats
-    const statusMap = new Map<string, number>();
-    ownedItems.forEach(i => {
-        const s = i.status || 'unknown';
-        statusMap.set(s, (statusMap.get(s) || 0) + 1);
+  const handleChangeLanguage = useCallback((nextLanguage: Language) => {
+    if (nextLanguage === language) return;
+    startUiTransition(() => {
+      setLanguage(nextLanguage);
     });
-    const statusStats = Array.from(statusMap.entries()).map(([status, count]) => ({
-        status,
-        count,
-        percent: totalCount > 0 ? (count / totalCount) * 100 : 0
-    })).sort((a, b) => b.count - a.count);
+  }, [language]);
 
-    // Duration Stats
-    // Buckets: <1M, 1-6M, 6-12M, 1-3Y, >3Y
-    const now = new Date().getTime();
-    const dayMs = 1000 * 60 * 60 * 24;
-    const durationBuckets: Record<string, number> = {
-        '<1M': 0,
-        '1-6M': 0,
-        '6-12M': 0,
-        '1-3Y': 0,
-        '>3Y': 0
-    };
-    
-    ownedItems.forEach(i => {
-        const raw = new Date(i.purchaseDate).getTime();
-        const pDate = Number.isFinite(raw) ? raw : now;
-        const days = (now - pDate) / dayMs;
-        if (days < 30) durationBuckets['<1M']++;
-        else if (days < 180) durationBuckets['1-6M']++;
-        else if (days < 365) durationBuckets['6-12M']++;
-        else if (days < 1095) durationBuckets['1-3Y']++;
-        else durationBuckets['>3Y']++;
-    });
-
-    // Timeline Data (sorted by date, highlighting status)
-    const timelineData = [...ownedItems].sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime());
-
-    // Monthly Spend Trend
-    const monthMap = new Map<string, number>();
-    ownedItems.forEach(item => {
-      if (!item.purchaseDate) return;
-      const monthKey = item.purchaseDate.slice(0, 7);
-      const amount = toNumber(item.price);
-      monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + amount);
-    });
-    const monthlySpend = Array.from(monthMap.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([month, value]) => ({ month, value }));
-
-    // Channel Spend Trend
-    const channelMap = new Map<string, { value: number; count: number }>();
-    ownedItems.forEach(item => {
-      const rawChannel = item.channel?.trim();
-      const key = rawChannel ? normalizeChannelValue(rawChannel) : channelLabelFallback;
-      const current = channelMap.get(key) || { value: 0, count: 0 };
-      channelMap.set(key, { value: current.value + item.price, count: current.count + 1 });
-    });
-    const channelStats = Array.from(channelMap.entries())
-      .map(([channel, data]) => ({
-        channel,
-        value: data.value,
-        count: data.count,
-        percentVal: totalVal > 0 ? (data.value / totalVal) * 100 : 0
-      }))
-      .sort((a, b) => b.value - a.value);
-
-    return { totalCount, totalVal, catStatsByValue, catStatsByCount, statusStats, durationBuckets, timelineData, monthlySpend, channelStats };
-  }, [ownedItems, categories, normalizeChannelValue, shouldComputeStats, totalValue]);
-
-
-  // Helper for localized status label
-  const getStatusLabel = (s: string) => {
-     if (s === 'new') return TEXTS.statusNew[language];
-     if (s === 'used') return TEXTS.statusUsed[language];
-     if (s === 'broken') return TEXTS.statusBroken[language];
-     if (s === 'sold') return TEXTS.statusSold[language];
-     if (s === 'emptied') return TEXTS.statusEmptied[language];
-     return s;
-  };
-
-  // Helper for localized category label
-  const getCategoryLabel = (c: string) => {
-      const config = CATEGORY_CONFIG[c];
-      return config ? TEXTS[config.labelKey][language] : c;
-  };
-
-  // Generic Label Getter
-  const getFilterLabel = (val: string) => {
-      if (activeTab === 'owned') return getStatusLabel(val);
-      if (activeTab === 'wishlist') return getCategoryLabel(val);
-      return val;
-  };
-
-  // Helper to get Icon for Category Filter
-  const getFilterIcon = (val: string) => {
-      if (activeTab === 'wishlist') {
-          const config = CATEGORY_CONFIG[val];
-          return config ? config.icon : null;
+  const handleChangeTab = useCallback((nextTab: Tab) => {
+    if (nextTab === activeTab) return;
+    startUiTransition(() => {
+      if (nextTab === 'owned' || nextTab === 'wishlist' || nextTab === 'stats') {
+        setMountedTabs(prev => ({ ...prev, [nextTab]: true }));
       }
-      return null;
-  };
+      setActiveTab(nextTab);
+    });
+  }, [activeTab]);
 
   // --- Render ---
   return (
@@ -1727,33 +1576,12 @@ const App: React.FC = () => {
              <p className="opacity-60 text-sm">{TEXTS.tabStats[language]}</p>
         ) : activeTab === 'owned' ? (
             <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-light">{currencySymbol}{formatNumber(totalValue)}</span>
+                <span className="text-4xl font-light">{formatCurrency(totalValue, 'CNY', language)}</span>
                 <span className="text-sm opacity-60 uppercase tracking-widest font-semibold">{TEXTS.totalValue[language]}</span>
             </div>
         ) : null}
       </div>
 
-      {/* STATISTICS TAB */}
-      {activeTab === 'stats' && (
-        <Suspense fallback={<div className="p-6 pb-32"></div>}>
-          <StatsTab
-            stats={stats}
-            language={language}
-            TEXTS={TEXTS}
-            ICONS={ICONS}
-            CATEGORY_CONFIG={CATEGORY_CONFIG}
-            themeColors={themeColors}
-            currencySymbol={currencySymbol}
-            formatNumber={formatNumber}
-            toNumber={toNumber}
-            getStatusLabel={getStatusLabel}
-            getCategoryLabel={getCategoryLabel}
-            getChannelLabel={getChannelLabel}
-            topN={topN}
-            onTopNChange={setTopN}
-          />
-        </Suspense>
-      )}
 
       {/* PROFILE TAB (Simplified) */}
       {activeTab === 'profile' && (
@@ -1848,10 +1676,10 @@ const App: React.FC = () => {
                 {(['zh-CN', 'zh-TW', 'en', 'ja'] as Language[]).map(l => (
                   <button 
                     key={l}
-                    onClick={() => setLanguage(l)}
+                    onClick={() => handleChangeLanguage(l)}
                     className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${language === l ? `${themeColors.primary} text-white shadow-md` : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'}`}
                   >
-                    {l === 'zh-CN' ? '简体中文' : l === 'zh-TW' ? '繁體中文' : l === 'en' ? 'English' : '日本語'}
+                    {l === 'zh-CN' ? TEXTS.langZhCN[language] : l === 'zh-TW' ? TEXTS.langZhTW[language] : l === 'en' ? TEXTS.langEn[language] : TEXTS.langJa[language]}
                   </button>
                 ))}
               </div>
@@ -1920,6 +1748,7 @@ const App: React.FC = () => {
           </div>
       )}
 
+      <Suspense fallback={null}>
       <SheetModal
         isOpen={showQuickStartModal}
         title={TEXTS.quickStart[language]}
@@ -2262,163 +2091,99 @@ const App: React.FC = () => {
           </div>
         </div>
       </SheetModal>
+      </Suspense>
 
-      {/* OWNED / WISHLIST VIEWS */}
-      {(activeTab === 'owned' || activeTab === 'wishlist') && (
-        <>
-            {/* Search & Advanced Filters */}
-            <div className="px-6 mb-3 space-y-3">
-                <div className="flex gap-2">
-                    <div className="relative flex-1">
-                        <ICONS.Search size={16} className="absolute left-4 top-4 text-gray-400" />
-                        <input
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder={TEXTS.searchPlaceholder[language]}
-                            className="w-full p-4 pl-10 bg-white dark:bg-slate-900 dark:text-white rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm"
-                        />
-                    </div>
-                    <button
-                        onClick={() => setShowAdvancedFilters(prev => !prev)}
-                        className="px-4 py-3 rounded-2xl bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 text-xs font-semibold flex items-center gap-2"
-                    >
-                        <ICONS.SlidersHorizontal size={16} />
-                        {TEXTS.advancedFilter[language]}
-                    </button>
-                </div>
 
-                {showAdvancedFilters && (
-                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                          <div>
-                              <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.dateStart[language]}</label>
-                              <input
-                                  type="date"
-                                  value={filterDateStart}
-                                  onChange={(e) => setFilterDateStart(e.target.value)}
-                                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-white rounded-xl border border-gray-200 dark:border-slate-700 [color-scheme:light] dark:[color-scheme:dark]"
-                              />
-                          </div>
-                          <div>
-                              <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.dateEnd[language]}</label>
-                              <input
-                                  type="date"
-                                  value={filterDateEnd}
-                                  onChange={(e) => setFilterDateEnd(e.target.value)}
-                                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-white rounded-xl border border-gray-200 dark:border-slate-700 [color-scheme:light] dark:[color-scheme:dark]"
-                              />
-                          </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                          <div>
-                              <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.priceMin[language]}</label>
-                              <input
-                                  type="number"
-                                  value={filterPriceMin}
-                                  onChange={(e) => setFilterPriceMin(e.target.value)}
-                                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-white rounded-xl border border-gray-200 dark:border-slate-700"
-                              />
-                          </div>
-                          <div>
-                              <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.priceMax[language]}</label>
-                              <input
-                                  type="number"
-                                  value={filterPriceMax}
-                                  onChange={(e) => setFilterPriceMax(e.target.value)}
-                                  className="w-full p-3 bg-white dark:bg-slate-800 dark:text-white rounded-xl border border-gray-200 dark:border-slate-700"
-                              />
-                          </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <button
-                          onClick={handleClearFilters}
-                          className="text-xs font-semibold text-gray-500 dark:text-gray-300 px-3 py-2 rounded-full bg-gray-100 dark:bg-slate-800"
-                        >
-                          {TEXTS.clearFilter[language]}
-                        </button>
-                      </div>
-                  </div>
-                )}
-            </div>
-
-            {/* Filter Chips (Dynamic: Status for Owned, Category for Wishlist) */}
-            <div className="px-6 mb-2">
-                <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
-                    <button
-                        onClick={() => setActiveFilter('all')}
-                        className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-                            activeFilter === 'all'
-                            ? `${themeColors.primary} text-white shadow-md`
-                            : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400'
-                        }`}
-                    >
-                        {TEXTS.filterAll[language]}
-                    </button>
-                    {availableFilters.map(filterVal => {
-                        const FilterIcon = getFilterIcon(filterVal);
-                        return (
-                            <button
-                                key={filterVal}
-                                onClick={() => setActiveFilter(filterVal)}
-                                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                                    activeFilter === filterVal
-                                    ? `${themeColors.primary} text-white shadow-md`
-                                    : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400'
-                                }`}
-                            >
-                                {FilterIcon && <FilterIcon size={12} />}
-                                {getFilterLabel(filterVal)}
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-
-            <Timeline 
-              items={finalDisplayItems} 
-              theme={theme} 
+      <div
+        className={mountedTabs.owned ? (activeTab === 'owned' ? 'block' : 'hidden') : 'hidden'}
+        aria-hidden={activeTab !== 'owned'}
+      >
+        {mountedTabs.owned && (
+          <TabErrorBoundary
+            tabName="owned"
+            title={TEXTS.notice[language]}
+            message={TEXTS.noData[language]}
+            retryLabel={TEXTS.ok[language]}
+            accentClassName={themeColors.primary}
+          >
+            <OwnedTabContainer
+              items={ownedItems}
+              theme={theme}
               language={language}
+              statuses={statuses}
+              aiEnabled={aiEnabled}
+              isActive={activeTab === 'owned'}
               onEdit={handleEditItem}
               onDelete={handleDeleteItem}
               onAddUsage={handleAddUsage}
-              imageMap={itemImages}
               onRequestImage={getResolvedItemImage}
               onPreviewImage={openImagePreview}
+              onOpenAdd={handleOpenAdd}
             />
-        </>
-      )}
+          </TabErrorBoundary>
+        )}
+      </div>
 
-      {/* Floating Action Buttons (Split) - Hide on Profile and Stats tab */}
-      {(activeTab === 'owned' || activeTab === 'wishlist') && (
-        <div className="fixed right-6 bottom-28 z-40 flex flex-col items-end gap-4 pointer-events-none">
-            {/* Manual Add - Secondary (Only show if AI is enabled) */}
-            {aiEnabled && (
-                <div className="flex items-center gap-2 pointer-events-auto">
-                <button
-                    onClick={() => handleOpenAdd('manual')}
-                    className="flex items-center justify-center w-14 h-14 rounded-[1.5rem] shadow-lg bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 transition-transform hover:scale-105 active:scale-95 border border-gray-100 dark:border-slate-700"
-                >
-                    <ICONS.Edit3 size={24} />
-                </button>
-                </div>
-            )}
+      <div
+        className={mountedTabs.wishlist ? (activeTab === 'wishlist' ? 'block' : 'hidden') : 'hidden'}
+        aria-hidden={activeTab !== 'wishlist'}
+      >
+        {mountedTabs.wishlist && (
+          <TabErrorBoundary
+            tabName="wishlist"
+            title={TEXTS.notice[language]}
+            message={TEXTS.noData[language]}
+            retryLabel={TEXTS.ok[language]}
+            accentClassName={themeColors.primary}
+          >
+            <WishlistTabContainer
+              items={wishlistItems}
+              theme={theme}
+              language={language}
+              categories={categories}
+              aiEnabled={aiEnabled}
+              isActive={activeTab === 'wishlist'}
+              onEdit={handleEditItem}
+              onDelete={handleDeleteItem}
+              onAddUsage={handleAddUsage}
+              onRequestImage={getResolvedItemImage}
+              onPreviewImage={openImagePreview}
+              onOpenAdd={handleOpenAdd}
+            />
+          </TabErrorBoundary>
+        )}
+      </div>
 
-            {/* Primary Add Button (Acts as AI if enabled, or Manual if AI disabled) */}
-            <div className="flex items-center gap-2 pointer-events-auto">
-                <button
-                    onClick={() => handleOpenAdd(aiEnabled ? 'ai' : 'manual')}
-                    className={`flex items-center justify-center w-14 h-14 rounded-[1.5rem] shadow-xl text-white transition-transform hover:scale-105 active:scale-95 ${themeColors.primary}`}
-                >
-                    {aiEnabled ? <ICONS.Sparkles size={24} /> : <ICONS.Plus size={28} />}
-                </button>
-            </div>
-        </div>
-      )}
+      <div
+        className={mountedTabs.stats ? (activeTab === 'stats' ? 'block' : 'hidden') : 'hidden'}
+        aria-hidden={activeTab !== 'stats'}
+      >
+        {mountedTabs.stats && (
+          <TabErrorBoundary
+            tabName="stats"
+            title={TEXTS.notice[language]}
+            message={TEXTS.noData[language]}
+            retryLabel={TEXTS.ok[language]}
+            accentClassName={themeColors.primary}
+          >
+            <StatsTabContainer
+              items={items}
+              categories={categories}
+              channels={channels}
+              theme={theme}
+              language={language}
+              isActive={activeTab === 'stats'}
+              formatNumber={formatNumber}
+              toNumber={toNumber}
+            />
+          </TabErrorBoundary>
+        )}
+      </div>
 
       {/* Floating Bottom Navigation */}
       <div className="fixed bottom-6 left-6 right-6 h-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl rounded-full z-30 flex items-center justify-around px-2 border border-white/50 dark:border-slate-800/50 transition-colors">
         <button 
-            onClick={() => setActiveTab('owned')}
+            onClick={() => handleChangeTab('owned')}
             className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'owned' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'owned' ? themeColors.container : 'bg-transparent'}`}>
@@ -2428,7 +2193,7 @@ const App: React.FC = () => {
         </button>
         
         <button 
-            onClick={() => setActiveTab('wishlist')}
+            onClick={() => handleChangeTab('wishlist')}
             className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'wishlist' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'wishlist' ? themeColors.container : 'bg-transparent'}`}>
@@ -2438,7 +2203,7 @@ const App: React.FC = () => {
         </button>
 
         <button 
-            onClick={() => setActiveTab('stats')}
+            onClick={() => handleChangeTab('stats')}
             className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'stats' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'stats' ? themeColors.container : 'bg-transparent'}`}>
@@ -2448,7 +2213,7 @@ const App: React.FC = () => {
         </button>
 
         <button 
-            onClick={() => setActiveTab('profile')}
+            onClick={() => handleChangeTab('profile')}
             className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'profile' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'profile' ? themeColors.container : 'bg-transparent'}`}>
@@ -2459,6 +2224,7 @@ const App: React.FC = () => {
       </div>
 
       {dialog && (
+        <Suspense fallback={null}>
         <Dialog
           isOpen={true}
           type={dialog.type}
@@ -2472,6 +2238,7 @@ const App: React.FC = () => {
           onConfirm={dialog.onConfirm}
           onCancel={dialog.onCancel}
         />
+        </Suspense>
       )}
 
       {previewImage && (
@@ -2499,6 +2266,7 @@ const App: React.FC = () => {
         </div>
       )}
 
+      <Suspense fallback={null}>
       <AddItemModal 
         isOpen={isAddModalOpen} 
         onClose={handleCloseModal}
@@ -2517,25 +2285,12 @@ const App: React.FC = () => {
         statuses={statuses}
         channels={channels}
       />
+      </Suspense>
     </div>
   );
 };
 
 export default App;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

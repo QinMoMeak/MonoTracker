@@ -24,12 +24,6 @@ export default defineConfig(({ mode }) => {
           output: {
             manualChunks: {
               react: ['react', 'react-dom'],
-              echarts: [
-                'echarts/core',
-                'echarts/charts',
-                'echarts/components',
-                'echarts/renderers'
-              ],
               capacitor: [
                 '@capacitor/core',
                 '@capacitor/app',

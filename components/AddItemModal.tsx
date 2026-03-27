@@ -1,9 +1,12 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { AiRuntimeConfig, Item, Language, ThemeColor } from '../types';
 import { THEMES, TEXTS, ICONS, CATEGORY_CONFIG } from '../constants';
 import { analyzeItemDetails } from '../services/aiService';
 import { X, Loader2, Camera, Link as LinkIcon } from 'lucide-react';
+import { processImageFile, revokeImagePreview } from '../utils/imageProcessing';
+import { formatDate } from '../utils/date';
+import { formatCurrency } from '../utils/format';
 
 interface Props {
   isOpen: boolean;
@@ -28,15 +31,17 @@ const AddItemModal: React.FC<Props> = ({
   isOpen, onClose, onSave, onDelete, onAlert, onConfirm, language, theme, aiConfig, aiEnabled, activeTab, initialItem, initialMode,
   categories, statuses, channels
 }) => {
+  const mountedRef = useRef(true);
+  const focusScrollTimeoutRef = useRef<number | null>(null);
   const [mode, setMode] = useState<'ai' | 'manual'>('ai');
   const [loading, setLoading] = useState(false);
   const [desc, setDesc] = useState('');
-  const [image, setImage] = useState<string | undefined>(undefined);
-  const [images, setImages] = useState<string[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<Array<{ previewUrl: string; thumbDataUrl: string }>>([]);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0]);
   const [historyPrice, setHistoryPrice] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageAssetsRef = useRef<Array<{ originalDataUrl: string; thumbDataUrl: string; previewUrl: string }>>([]);
 
   // Manual Form State
   const [formData, setFormData] = useState<Partial<Item>>({
@@ -48,6 +53,25 @@ const AddItemModal: React.FC<Props> = ({
     return Number((price / safeQuantity).toFixed(2));
   };
 
+  const clearImageAssets = useCallback(() => {
+    if (focusScrollTimeoutRef.current !== null) {
+      window.clearTimeout(focusScrollTimeoutRef.current);
+      focusScrollTimeoutRef.current = null;
+    }
+    imageAssetsRef.current.forEach(asset => revokeImagePreview(asset.previewUrl));
+    imageAssetsRef.current = [];
+    setImagePreviews([]);
+  }, []);
+
+  const setImageAssets = useCallback((assets: Array<{ originalDataUrl: string; thumbDataUrl: string; previewUrl: string }>) => {
+    clearImageAssets();
+    imageAssetsRef.current = assets;
+    setImagePreviews(assets.map(asset => ({ previewUrl: asset.previewUrl, thumbDataUrl: asset.thumbDataUrl })));
+  }, [clearImageAssets]);
+
+  const currentImage = imageAssetsRef.current[0]?.originalDataUrl;
+  const currentImages = imageAssetsRef.current.map(asset => asset.originalDataUrl);
+
   // Reset or Populate form when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -56,9 +80,16 @@ const AddItemModal: React.FC<Props> = ({
         const quantity = Math.max(1, Math.floor(Number(initialItem.quantity || 1)));
         const price = typeof initialItem.price === 'number' ? initialItem.price : 0;
         const avgPrice = typeof initialItem.avgPrice === 'number' ? initialItem.avgPrice : computeAvgPrice(price, quantity);
-        setFormData({ ...initialItem, quantity, avgPrice, storeName: initialItem.storeName || '', channel: normalizeChannelValue(initialItem.channel), valueDisplay: initialItem.valueDisplay || 'both' });
-        setImage(initialItem.image);
-        setImages(initialItem.image ? [initialItem.image] : []);
+        setFormData({ ...initialItem, image: undefined, imageThumb: initialItem.imageThumb || initialItem.image, quantity, avgPrice, storeName: initialItem.storeName || '', channel: normalizeChannelValue(initialItem.channel), valueDisplay: initialItem.valueDisplay || 'both' });
+        if (initialItem.image || initialItem.imageThumb) {
+          setImageAssets([{
+            originalDataUrl: initialItem.image || initialItem.imageThumb || '',
+            thumbDataUrl: initialItem.imageThumb || initialItem.image || '',
+            previewUrl: initialItem.imageThumb || initialItem.image || ''
+          }]);
+        } else {
+          clearImageAssets();
+        }
         setDesc('');
         setHistoryDate(new Date().toISOString().split('T')[0]);
         setHistoryPrice('');
@@ -68,14 +99,32 @@ const AddItemModal: React.FC<Props> = ({
         setFormData({ 
           name: '', price: 0, msrp: 0, quantity: 1, avgPrice: 0, note: '', link: '', storeName: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], priceHistory: [], valueDisplay: 'both' 
         });
-        setImage(undefined);
-        setImages([]);
+        clearImageAssets();
         setDesc('');
         setHistoryDate(new Date().toISOString().split('T')[0]);
         setHistoryPrice('');
       }
     }
-  }, [isOpen, initialItem, activeTab, initialMode, aiEnabled]);
+  }, [isOpen, initialItem, activeTab, initialMode, aiEnabled, clearImageAssets, setImageAssets]);
+
+  useEffect(() => {
+    if (isOpen) return undefined;
+    clearImageAssets();
+    return undefined;
+  }, [clearImageAssets, isOpen]);
+
+  useEffect(() => clearImageAssets, [clearImageAssets]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (focusScrollTimeoutRef.current !== null) {
+        window.clearTimeout(focusScrollTimeoutRef.current);
+        focusScrollTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -100,13 +149,16 @@ const AddItemModal: React.FC<Props> = ({
   const handleFocusCapture = (event: React.FocusEvent) => {
     const target = event.target as HTMLElement;
     if (!target || typeof target.scrollIntoView !== 'function') return;
-    setTimeout(() => {
+    if (focusScrollTimeoutRef.current !== null) {
+      window.clearTimeout(focusScrollTimeoutRef.current);
+    }
+    focusScrollTimeoutRef.current = window.setTimeout(() => {
       target.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 200);
   };
 
   const themeColors = THEMES[theme];
-  const currencySymbol = '\u00a5';
+  const currencyPrefix = '\u00A5';
   const allChannels = channels;
 
   const channelLabelMap = useMemo(() => {
@@ -126,31 +178,37 @@ const AddItemModal: React.FC<Props> = ({
     return map;
   }, [channelLabelMap]);
 
+  const channelAliasMap = useMemo(() => {
+    const map = new Map<string, string>();
+    allChannels.forEach(channel => {
+      map.set(channel, channel);
+      const key = `chan${channel}`;
+      const translations = TEXTS[key];
+      if (translations) {
+        Object.values(translations).forEach(label => map.set(label, channel));
+      }
+    });
+    return map;
+  }, [allChannels]);
+
   const getChannelLabel = (channel: string) =>
     channelLabelMap.get(channel) || channel;
 
   const normalizeChannelValue = (value?: string) => {
     if (!value) return '';
-    return channelLabelToKeyMap.get(value) || value;
+    return channelAliasMap.get(value) || channelLabelToKeyMap.get(value) || value;
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = Array.from(e.target.files || []);
+    const fileList = Array.from(e.target.files || []) as File[];
     if (fileList.length === 0) return;
 
-    const readFile = (file: File) =>
-      new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error("Failed to read image"));
-        reader.readAsDataURL(file);
-      });
-
     try {
-      const dataUrls = await Promise.all(fileList.map(readFile));
-      setImages(dataUrls);
-      setImage(dataUrls[0]);
+      const assets = await Promise.all(fileList.map(file => processImageFile(file)));
+      if (!mountedRef.current || !isOpen) return;
+      setImageAssets(assets);
     } catch {
+      if (!mountedRef.current) return;
       await onAlert(TEXTS.aiAnalyzeFailed[language]);
     } finally {
       e.target.value = '';
@@ -159,7 +217,7 @@ const AddItemModal: React.FC<Props> = ({
 
 
   const handleAiAnalyze = async () => {
-    if (!desc && !image) return;
+    if (!desc && !currentImage) return;
     if (!aiEnabled || !aiConfig || aiConfig.provider === 'disabled') {
       await onAlert(TEXTS.aiMissingProvider[language]);
       return;
@@ -173,8 +231,8 @@ const AddItemModal: React.FC<Props> = ({
       const today = new Date().toISOString().split('T')[0];
       const result = await analyzeItemDetails(aiConfig, {
         text: desc,
-        imageBase64: image,
-        imageBase64s: images.length ? images : undefined,
+        imageBase64: currentImage,
+        imageBase64s: currentImages.length ? currentImages : undefined,
         categories,
         statuses,
         channels,
@@ -186,6 +244,7 @@ const AddItemModal: React.FC<Props> = ({
       const storeName = typeof result.storeName === 'string' ? result.storeName : '';
       const nextQuantity = Math.max(1, Math.floor(Number(result.quantity || 0) || (Number(formData.quantity || 1) || 1)));
       const nextAvgPrice = computeAvgPrice(price, nextQuantity);
+      if (!mountedRef.current || !isOpen) return;
       setFormData(prev => {
         const nextChannel = normalizeChannelValue(result.channel || prev.channel);
         const resolvedType = activeTab === 'wishlist' ? 'wishlist' : (result.type || prev.type || activeTab);
@@ -201,15 +260,18 @@ const AddItemModal: React.FC<Props> = ({
           status: result.status || prev.status,
           category: result.category || prev.category,
           channel: nextChannel,
-          image: image || result.image,
+          imageThumb: imagePreviews[0]?.thumbDataUrl || prev.imageThumb,
           type: resolvedType
         });
       });
       setMode('manual'); 
     } catch {
+      if (!mountedRef.current) return;
       await onAlert(TEXTS.aiAnalyzeFailed[language]);
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -222,7 +284,8 @@ const AddItemModal: React.FC<Props> = ({
         quantity,
         avgPrice,
         channel: normalizeChannelValue(formData.channel),
-        image, 
+        image: currentImage, 
+        imageThumb: imagePreviews[0]?.thumbDataUrl, 
         usageCount: formData.usageCount || 0,
         discountRate: formData.price && formData.msrp ? ((formData.msrp - formData.price) / formData.msrp) * 100 : 0
     });
@@ -257,6 +320,7 @@ const AddItemModal: React.FC<Props> = ({
   const handleDelete = async () => {
     if (!initialItem?.id || !onDelete) return;
     const confirmed = await onConfirm(TEXTS.deleteConfirm[language]);
+    if (!mountedRef.current) return;
     if (!confirmed) return;
     onDelete(initialItem.id);
     onClose();
@@ -304,12 +368,12 @@ const AddItemModal: React.FC<Props> = ({
                 fileInputRef.current?.click();
               }}
             >
-              {images.length > 0 ? (
+              {imagePreviews.length > 0 ? (
                 <div className="relative">
-                  <img src={images[0]} alt={TEXTS.imagePreviewAlt[language]} className="h-40 object-contain rounded-xl" />
-                  {images.length > 1 && (
+                  <img src={imagePreviews[0].previewUrl} alt={TEXTS.imagePreviewAlt[language]} className="h-40 object-contain rounded-xl" />
+                  {imagePreviews.length > 1 && (
                     <span className="absolute -top-2 -right-2 text-[10px] font-bold bg-gray-800 text-white rounded-full px-2 py-0.5 shadow">
-                      +{images.length - 1}
+                      +{imagePreviews.length - 1}
                     </span>
                   )}
                 </div>
@@ -341,8 +405,8 @@ const AddItemModal: React.FC<Props> = ({
               <button 
                 type="button"
                 onClick={handleAiAnalyze}
-                disabled={loading || (!desc && !image)}
-                className={`flex-1 py-4 rounded-full font-semibold text-white flex items-center justify-center gap-2 ${themeColors.primary} ${(loading || (!desc && !image)) ? 'opacity-50' : ''}`}
+                disabled={loading || (!desc && !currentImage)}
+                className={`flex-1 py-4 rounded-full font-semibold text-white flex items-center justify-center gap-2 ${themeColors.primary} ${(loading || (!desc && !currentImage)) ? 'opacity-50' : ''}`}
               >
                 {loading ? <Loader2 className="animate-spin" /> : <ICONS.Sparkles size={20} />}
                 {loading ? TEXTS.analyzing[language] : TEXTS.quickAdd[language]}
@@ -357,12 +421,12 @@ const AddItemModal: React.FC<Props> = ({
             <div className="flex justify-center mb-4 cursor-pointer" onClick={() => {
               fileInputRef.current?.click();
             }}>
-                {image ? (
+                {imagePreviews.length > 0 ? (
                   <div className="relative">
-                    <img src={image} alt={TEXTS.imagePreviewAlt[language]} className="h-32 rounded-xl object-cover shadow-sm" />
-                    {images.length > 1 && (
+                    <img src={imagePreviews[0].previewUrl} alt={TEXTS.imagePreviewAlt[language]} className="h-32 rounded-xl object-cover shadow-sm" />
+                    {imagePreviews.length > 1 && (
                       <span className="absolute -top-2 -right-2 text-[10px] font-bold bg-gray-800 text-white rounded-full px-2 py-0.5 shadow">
-                        +{images.length - 1}
+                        +{imagePreviews.length - 1}
                       </span>
                     )}
                   </div>
@@ -422,7 +486,7 @@ const AddItemModal: React.FC<Props> = ({
               <div className="flex-1">
                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.price[language]}</label>
                 <div className="relative">
-                    <span className="absolute left-4 top-4 text-gray-400">{currencySymbol}</span>
+                    <span className="absolute left-4 top-4 text-gray-400">{currencyPrefix}</span>
                     <input 
                         type="number"
                         value={formData.price}
@@ -438,7 +502,7 @@ const AddItemModal: React.FC<Props> = ({
               <div className="flex-1">
                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.msrp[language]}</label>
                 <div className="relative">
-                    <span className="absolute left-4 top-4 text-gray-400">{currencySymbol}</span>
+                    <span className="absolute left-4 top-4 text-gray-400">{currencyPrefix}</span>
                     <input 
                         type="number"
                         value={formData.msrp}
@@ -469,7 +533,7 @@ const AddItemModal: React.FC<Props> = ({
               <div className="flex-1">
                 <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.avgPrice[language]}</label>
                 <div className="relative">
-                  <span className="absolute left-4 top-4 text-gray-400">{currencySymbol}</span>
+                  <span className="absolute left-4 top-4 text-gray-400">{currencyPrefix}</span>
                   <input
                     type="number"
                     value={formData.avgPrice}
@@ -501,7 +565,7 @@ const AddItemModal: React.FC<Props> = ({
                   <div>
                     <label className="text-[10px] font-semibold text-gray-400 ml-1 mb-1 block uppercase">{TEXTS.priceHistoryPrice[language]}</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-3 text-gray-400">{currencySymbol}</span>
+                      <span className="absolute left-3 top-3 text-gray-400">{currencyPrefix}</span>
                       <input
                         type="number"
                         value={historyPrice}
@@ -525,10 +589,10 @@ const AddItemModal: React.FC<Props> = ({
                     <p className="text-xs text-gray-400">{TEXTS.priceHistoryEmpty[language]}</p>
                   )}
                   {sortedPriceHistory.map((point, index) => (
-                    <div key={`${point.date}-${index}`} className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-xl px-3 py-2 border border-gray-100 dark:border-slate-700">
+                    <div key={`${formatDate(point.date)}-${index}`} className="flex items-center justify-between bg-white dark:bg-slate-900 rounded-xl px-3 py-2 border border-gray-100 dark:border-slate-700">
                       <div className="flex items-center gap-3 text-xs">
-                        <span className="text-gray-400 font-mono">{point.date}</span>
-                        <span className="font-semibold text-gray-700 dark:text-gray-200">{currencySymbol}{point.price.toFixed(2)}</span>
+                        <span className="text-gray-400 font-mono">{formatDate(point.date)}</span>
+                        <span className="font-semibold text-gray-700 dark:text-gray-200">{formatCurrency(point.price, formData.currency || 'CNY', language)}</span>
                       </div>
                       <button
                         type="button"
