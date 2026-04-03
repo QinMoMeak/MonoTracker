@@ -9,6 +9,7 @@ interface TimelineProps {
   items: Item[];
   theme: ThemeColor;
   language: Language;
+  isActive: boolean;
   onEdit: (item: Item) => void;
   onDelete: (id: string) => void;
   onAddUsage: (item: Item) => void;
@@ -35,11 +36,13 @@ const getChannelLabel = (channel: string, language: Language) => {
 const TimelineImage = React.memo(({
   item,
   src,
+  isActive,
   onRequestImage,
   onPreviewImage
 }: {
   item: Item;
   src?: string;
+  isActive: boolean;
   onRequestImage?: (item: Item) => Promise<string | undefined>;
   onPreviewImage?: (item: Item) => void | Promise<void>;
 }) => {
@@ -51,7 +54,7 @@ const TimelineImage = React.memo(({
   }, [src]);
 
   React.useEffect(() => {
-    if (resolvedSrc || !item.hasImage || !hostRef.current || !onRequestImage) return undefined;
+    if (!isActive || resolvedSrc || !item.hasImage || !hostRef.current || !onRequestImage) return undefined;
     const node = hostRef.current;
     let cancelled = false;
     const observer = new IntersectionObserver(entries => {
@@ -73,7 +76,7 @@ const TimelineImage = React.memo(({
       cancelled = true;
       observer.disconnect();
     };
-  }, [item, onRequestImage, resolvedSrc]);
+  }, [isActive, item, onRequestImage, resolvedSrc]);
 
   const catConfig = CATEGORY_CONFIG[item.category] || CATEGORY_CONFIG.other;
   const CatIcon = catConfig.icon;
@@ -104,6 +107,7 @@ const TimelineItemCard = React.memo(({
   entry,
   theme,
   language,
+  isActive,
   onEdit,
   onAddUsage,
   onRequestImage,
@@ -112,6 +116,7 @@ const TimelineItemCard = React.memo(({
   entry: TimelineEntryBase;
   theme: ThemeColor;
   language: Language;
+  isActive: boolean;
   onEdit: (item: Item) => void;
   onAddUsage: (item: Item) => void;
   onRequestImage?: (item: Item) => Promise<string | undefined>;
@@ -131,6 +136,7 @@ const TimelineItemCard = React.memo(({
         <TimelineImage
           item={item}
           src={item.imageThumb}
+          isActive={isActive}
           onRequestImage={onRequestImage}
           onPreviewImage={onPreviewImage}
         />
@@ -251,6 +257,7 @@ const Timeline: React.FC<TimelineProps> = ({
   items,
   theme,
   language,
+  isActive,
   onEdit,
   onAddUsage,
   onPreviewImage,
@@ -269,7 +276,7 @@ const Timeline: React.FC<TimelineProps> = ({
   const { sortedItems, groupedTimeline, hasMore } = useTimelineGroups(items, visibleCount);
 
   React.useEffect(() => {
-    if (!hasMore || !loadMoreRef.current) return undefined;
+    if (!isActive || !hasMore || !loadMoreRef.current) return undefined;
     const node = loadMoreRef.current;
     const observer = new IntersectionObserver(entries => {
       if (entries[0]?.isIntersecting) {
@@ -279,7 +286,7 @@ const Timeline: React.FC<TimelineProps> = ({
 
     observer.observe(node);
     return () => observer.disconnect();
-  }, [batchSize, hasMore, useCompactWindowing]);
+  }, [batchSize, hasMore, isActive, useCompactWindowing]);
 
   if (groupedTimeline.keys.length === 0) {
     return (
@@ -312,6 +319,7 @@ const Timeline: React.FC<TimelineProps> = ({
                   entry={entry}
                   theme={theme}
                   language={language}
+                  isActive={isActive}
                   onEdit={onEdit}
                   onAddUsage={onAddUsage}
                   onRequestImage={onRequestImage}

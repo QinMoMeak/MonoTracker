@@ -1,9 +1,9 @@
-const DEFAULT_MAX_EDGE = 1600;
-const DEFAULT_THUMB_EDGE = 320;
-const DEFAULT_QUALITY = 0.82;
+const DEFAULT_MAX_EDGE = 1280;
+const DEFAULT_THUMB_EDGE = 256;
+const DEFAULT_QUALITY = 0.72;
 
 type ImageAsset = {
-  originalDataUrl: string;
+  savedDataUrl: string;
   thumbDataUrl: string;
   previewUrl: string;
 };
@@ -78,9 +78,15 @@ const renderCanvas = async (
 
   context.drawImage(image, 0, 0, width, height);
   const blob = await canvasToBlob(canvas, mimeType, quality);
+  const dataUrl = await readAsDataUrl(blob);
+
+  context.clearRect(0, 0, width, height);
+  canvas.width = 0;
+  canvas.height = 0;
+
   return {
     blob,
-    dataUrl: await readAsDataUrl(blob)
+    dataUrl
   };
 };
 
@@ -99,12 +105,16 @@ export const processImageFile = async (
   const quality = options.quality ?? DEFAULT_QUALITY;
   const mimeType = file.type === 'image/png' ? 'image/jpeg' : 'image/webp';
 
-  const original = await renderCanvas(image, maxEdge, quality, mimeType);
-  const thumb = await renderCanvas(image, thumbEdge, quality, mimeType);
+  try {
+    const saved = await renderCanvas(image, maxEdge, quality, mimeType);
+    const thumb = await renderCanvas(image, thumbEdge, quality, mimeType);
 
-  return {
-    originalDataUrl: original.dataUrl,
-    thumbDataUrl: thumb.dataUrl,
-    previewUrl: URL.createObjectURL(thumb.blob)
-  };
+    return {
+      savedDataUrl: saved.dataUrl,
+      thumbDataUrl: thumb.dataUrl,
+      previewUrl: URL.createObjectURL(thumb.blob)
+    };
+  } finally {
+    image.src = '';
+  }
 };

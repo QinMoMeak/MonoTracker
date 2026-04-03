@@ -41,7 +41,7 @@ const AddItemModal: React.FC<Props> = ({
   const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0]);
   const [historyPrice, setHistoryPrice] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageAssetsRef = useRef<Array<{ originalDataUrl: string; thumbDataUrl: string; previewUrl: string }>>([]);
+  const imageAssetsRef = useRef<Array<{ savedDataUrl: string; thumbDataUrl: string; previewUrl: string }>>([]);
 
   // Manual Form State
   const [formData, setFormData] = useState<Partial<Item>>({
@@ -63,14 +63,13 @@ const AddItemModal: React.FC<Props> = ({
     setImagePreviews([]);
   }, []);
 
-  const setImageAssets = useCallback((assets: Array<{ originalDataUrl: string; thumbDataUrl: string; previewUrl: string }>) => {
+  const setImageAssets = useCallback((assets: Array<{ savedDataUrl: string; thumbDataUrl: string; previewUrl: string }>) => {
     clearImageAssets();
     imageAssetsRef.current = assets;
     setImagePreviews(assets.map(asset => ({ previewUrl: asset.previewUrl, thumbDataUrl: asset.thumbDataUrl })));
   }, [clearImageAssets]);
 
-  const currentImage = imageAssetsRef.current[0]?.originalDataUrl;
-  const currentImages = imageAssetsRef.current.map(asset => asset.originalDataUrl);
+  const currentImage = imageAssetsRef.current[0]?.savedDataUrl;
 
   // Reset or Populate form when modal opens
   useEffect(() => {
@@ -80,12 +79,12 @@ const AddItemModal: React.FC<Props> = ({
         const quantity = Math.max(1, Math.floor(Number(initialItem.quantity || 1)));
         const price = typeof initialItem.price === 'number' ? initialItem.price : 0;
         const avgPrice = typeof initialItem.avgPrice === 'number' ? initialItem.avgPrice : computeAvgPrice(price, quantity);
-        setFormData({ ...initialItem, image: undefined, imageThumb: initialItem.imageThumb || initialItem.image, quantity, avgPrice, storeName: initialItem.storeName || '', channel: normalizeChannelValue(initialItem.channel), valueDisplay: initialItem.valueDisplay || 'both' });
-        if (initialItem.image || initialItem.imageThumb) {
+        setFormData({ ...initialItem, image: undefined, imageThumb: initialItem.imageThumb, quantity, avgPrice, storeName: initialItem.storeName || '', channel: normalizeChannelValue(initialItem.channel), valueDisplay: initialItem.valueDisplay || 'both' });
+        if (initialItem.imageThumb) {
           setImageAssets([{
-            originalDataUrl: initialItem.image || initialItem.imageThumb || '',
-            thumbDataUrl: initialItem.imageThumb || initialItem.image || '',
-            previewUrl: initialItem.imageThumb || initialItem.image || ''
+            savedDataUrl: '',
+            thumbDataUrl: initialItem.imageThumb,
+            previewUrl: initialItem.imageThumb
           }]);
         } else {
           clearImageAssets();
@@ -200,13 +199,24 @@ const AddItemModal: React.FC<Props> = ({
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = Array.from(e.target.files || []) as File[];
-    if (fileList.length === 0) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const maxFileSize = 8 * 1024 * 1024;
+
+    if (file.size > maxFileSize) {
+      await onAlert('图片过大，请选择 8MB 以内的图片');
+      e.target.value = '';
+      return;
+    }
 
     try {
-      const assets = await Promise.all(fileList.map(file => processImageFile(file)));
+      const asset = await processImageFile(file, {
+        maxEdge: 1280,
+        thumbEdge: 256,
+        quality: 0.72
+      });
       if (!mountedRef.current || !isOpen) return;
-      setImageAssets(assets);
+      setImageAssets([asset]);
     } catch {
       if (!mountedRef.current) return;
       await onAlert(TEXTS.aiAnalyzeFailed[language]);
@@ -232,7 +242,6 @@ const AddItemModal: React.FC<Props> = ({
       const result = await analyzeItemDetails(aiConfig, {
         text: desc,
         imageBase64: currentImage,
-        imageBase64s: currentImages.length ? currentImages : undefined,
         categories,
         statuses,
         channels,
@@ -284,7 +293,7 @@ const AddItemModal: React.FC<Props> = ({
         quantity,
         avgPrice,
         channel: normalizeChannelValue(formData.channel),
-        image: currentImage, 
+        image: currentImage,
         imageThumb: imagePreviews[0]?.thumbDataUrl, 
         usageCount: formData.usageCount || 0,
         discountRate: formData.price && formData.msrp ? ((formData.msrp - formData.price) / formData.msrp) * 100 : 0
@@ -383,7 +392,7 @@ const AddItemModal: React.FC<Props> = ({
                   <p className="text-gray-500 dark:text-slate-400 text-sm">{TEXTS.analyzeDesc[language]}</p>
                 </>
               )}
-              <input type="file" ref={fileInputRef} hidden accept="image/*" multiple onChange={handleImageUpload} />
+              <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageUpload} />
             </div>
 
             <textarea
@@ -438,7 +447,7 @@ const AddItemModal: React.FC<Props> = ({
                       </div>
                    </div>
                 )}
-                <input type="file" ref={fileInputRef} hidden accept="image/*" multiple onChange={handleImageUpload} />
+                <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleImageUpload} />
             </div>
 
             {/* Name */}

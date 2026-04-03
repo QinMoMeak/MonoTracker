@@ -68,12 +68,10 @@ const parseState = (serialized: string): Partial<PersistedState> => {
 
 const getImagePath = (id: string) => `${IMAGE_DIR}/${id}.txt`;
 
-const cloneSnapshot = <T,>(value: T): T => {
-  if (typeof globalThis.structuredClone === 'function') {
-    return globalThis.structuredClone(value);
-  }
-  return JSON.parse(JSON.stringify(value)) as T;
-};
+const createItemId = () =>
+  typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
 
 const hashString = (value: string) => {
   let hash = 2166136261;
@@ -301,6 +299,8 @@ const flushSaveQueue = async () => {
       try {
         await writeFilesystemState(persistedState);
         await applyFilesystemImageChanges(upserts, deletions);
+        commitPersistCache(upserts, deletions, currentImageIds);
+        continue;
       } catch (e) {
         console.error('Failed to save state to filesystem', e);
       }
@@ -325,6 +325,7 @@ const flushPreferencesQueue = async () => {
     if (Capacitor.isNativePlatform()) {
       try {
         await writeFilesystemPreferences(request);
+        continue;
       } catch (e) {
         console.error('Failed to save preferences to filesystem', e);
       }
@@ -410,7 +411,13 @@ export const loadItemImage = async (id: string): Promise<string | undefined> => 
 
 export const saveState = async (state: PersistedDataSnapshot, imageOverrides: Record<string, string> = {}) => {
   pendingSaveRequest = {
-    state: cloneSnapshot(state),
+    state: {
+      ...state,
+      items: state.items.map(item => ({ ...item })),
+      categories: [...state.categories],
+      statuses: [...state.statuses],
+      channels: [...state.channels]
+    },
     imageOverrides: { ...imageOverrides }
   };
 
@@ -427,7 +434,11 @@ export const saveState = async (state: PersistedDataSnapshot, imageOverrides: Re
 };
 
 export const savePreferences = async (state: PersistedPreferencesSnapshot) => {
-  pendingPreferencesRequest = cloneSnapshot(state);
+  pendingPreferencesRequest = {
+    ...state,
+    aiConfig: JSON.parse(JSON.stringify(state.aiConfig)),
+    webdav: { ...state.webdav }
+  };
 
   if (activePreferencesPromise) {
     await activePreferencesPromise;
@@ -482,7 +493,7 @@ export const importCSV = (csv: string): Item[] => {
           item[h] = val;
         }
       });
-      if (!item.id) item.id = Date.now().toString(36) + Math.random().toString(36).substr(2);
+      if (!item.id) item.id = createItemId();
       if (!item.image) item.image = undefined;
       if (!item.category) item.category = 'other';
       if (!item.storeName) item.storeName = '';
