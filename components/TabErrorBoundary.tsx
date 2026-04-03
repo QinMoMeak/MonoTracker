@@ -35,9 +35,9 @@ class TabErrorBoundary extends React.Component<Props, State> {
 
     return (
       <div className="px-6 pb-32">
-        <div className="rounded-[2rem] border border-gray-100 bg-white p-6 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="mb-2 text-base font-bold text-gray-800 dark:text-gray-100">{this.props.title}</div>
-          <div className="mb-4 text-sm text-gray-500 dark:text-gray-400">{this.props.message}</div>
+        <div className="rounded-[2rem] app-surface-card p-6 text-center shadow-sm">
+          <div className="mb-2 text-base font-bold">{this.props.title}</div>
+          <div className="mb-4 text-sm app-text-muted">{this.props.message}</div>
           <button
             type="button"
             onClick={this.handleRetry}

@@ -389,3 +389,108 @@
     - [MOD] services/storageService.ts
     - [MOD] types.ts
   - APK output: android/app/build/outputs/apk/debug/app-debug.apk
+
+- 2026-04-03
+  - APK build version: 1.5.25 / 44 -> 1.5.26 / 45
+  - Diff doc: doc/BUILD_DIFF_1.5.26.md
+  - Changes?
+    - [ADD] android/app/src/main/java/com/Tracker/app/DynamicThemePlugin.java
+    - [ADD] doc/RELEASE_NOTES_1.5.25.md
+    - [ADD] services/themeService.ts
+    - [MOD] App.tsx
+    - [MOD] android/app/src/main/java/com/Tracker/app/MainActivity.java
+    - [MOD] components/AddItemModal.tsx
+    - [MOD] components/Dialog.tsx
+    - [MOD] components/OwnedTabContainer.tsx
+    - [MOD] components/SheetModal.tsx
+    - [MOD] components/StatsTab.tsx
+    - [MOD] components/Timeline.tsx
+    - [MOD] components/WishlistTabContainer.tsx
+    - [MOD] constants.ts
+    - [MOD] styles.css
+    - [MOD] types.ts
+  - APK output: android/app/build/outputs/apk/debug/app-debug.apk
+
+- 2026-04-03
+  - APK build version: 1.5.26 / 45 -> 1.5.27 / 46
+  - Diff doc: doc/BUILD_DIFF_1.5.27.md
+  - Changes?
+    - [ADD] doc/RELEASE_NOTES_1.5.26.md
+    - [MOD] App.tsx
+    - [MOD] components/AddItemModal.tsx
+    - [MOD] components/OwnedTabContainer.tsx
+    - [MOD] components/StatsTab.tsx
+    - [MOD] components/TabErrorBoundary.tsx
+    - [MOD] components/Timeline.tsx
+    - [MOD] components/WishlistTabContainer.tsx
+    - [MOD] styles.css
+  - APK output: android/app/build/outputs/apk/debug/app-debug.apk
+
+- 2026-04-03
+  - APK build version: 1.5.27 / 46 -> 1.5.28 / 47
+  - Diff doc: doc/BUILD_DIFF_1.5.28.md
+  - Changes?
+    - [ADD] android/app/src/main/res/values/colors.xml
+    - [ADD] doc/RELEASE_NOTES_1.5.27.md
+    - [MOD] App.tsx
+    - [MOD] android/app/build.gradle
+    - [MOD] android/app/src/main/res/values/styles.xml
+    - [MOD] components/AddItemModal.tsx
+    - [MOD] components/Dialog.tsx
+    - [MOD] components/SheetModal.tsx
+    - [MOD] components/StatsTab.tsx
+    - [MOD] components/TabErrorBoundary.tsx
+    - [MOD] components/Timeline.tsx
+    - [MOD] services/themeService.ts
+    - [MOD] styles.css
+  - APK output: android/app/build/outputs/apk/debug/app-debug.apk
+
+- 2026-04-03
+  - APK build version: 1.5.28 / 47 -> 1.5.29 / 48
+  - Diff doc: doc/BUILD_DIFF_1.5.29.md
+  - Changes?
+    - [ADD] doc/RELEASE_NOTES_1.5.28.md
+    - [ADD] utils/categoryTheme.ts
+    - [MOD] components/AddItemModal.tsx
+    - [MOD] components/OwnedTabContainer.tsx
+    - [MOD] components/StatsTab.tsx
+    - [MOD] components/Timeline.tsx
+    - [MOD] components/WishlistTabContainer.tsx
+    - [MOD] constants.ts
+    - [MOD] types.ts
+  - APK output: android/app/build/outputs/apk/debug/app-debug.apk
+
+- 2026-04-03
+  - APK build version: 1.5.29 / 48 -> 1.5.30 / 49
+  - Diff doc: doc/BUILD_DIFF_1.5.30.md
+  - Changes?
+  - APK output: android/app/build/outputs/apk/debug/app-debug.apk
+
+- 2026-04-03
+  - APK build version: 1.5.30 / 49 -> 1.5.31 / 50
+  - Diff doc: doc/BUILD_DIFF_1.5.31.md
+  - Changes?
+    - [ADD] doc/RELEASE_NOTES_1.5.30.md
+    - [MOD] constants.ts
+  - APK output: android/app/build/outputs/apk/debug/app-debug.apk
+
+- 2026-04-03
+  - APK build version: 1.5.31 / 50 -> 1.5.32 / 51
+  - Diff doc: doc/BUILD_DIFF_1.5.32.md
+  - Changes?
+    - [ADD] doc/RELEASE_NOTES_1.5.31.md
+    - [MOD] constants.ts
+  - APK output: android/app/build/outputs/apk/debug/app-debug.apk
+
+- 2026-04-03
+  - APK build version: 1.5.32 / 51 -> 1.5.33 / 52
+  - Diff doc: doc/BUILD_DIFF_1.5.33.md
+  - Changes?
+    - [ADD] doc/RELEASE_NOTES_1.5.32.md
+    - [MOD] App.tsx
+    - [MOD] constants.ts
+    - [MOD] services/storageService.ts
+    - [MOD] services/themeService.ts
+    - [MOD] styles.css
+    - [MOD] types.ts
+  - APK output: android/app/build/outputs/apk/debug/app-debug.apk

@@ -4,6 +4,28 @@ export type ThemeColor = 'blue' | 'green' | 'violet' | 'orange' | 'rose';
 export type AppearanceMode = 'light' | 'dark' | 'system';
 export type Tab = 'owned' | 'wishlist' | 'stats' | 'profile';
 export type RestoreMode = 'merge' | 'overwrite';
+export interface MaterialThemeTokens {
+  primary: string;
+  onPrimary: string;
+  primaryContainer: string;
+  onPrimaryContainer: string;
+  secondary: string;
+  onSecondary: string;
+  secondaryContainer: string;
+  onSecondaryContainer: string;
+  surface: string;
+  onSurface: string;
+  surfaceVariant: string;
+  onSurfaceVariant: string;
+  outline: string;
+  error: string;
+}
+
+export interface CategoryVisualConfig {
+  icon: any;
+  labelKey: string;
+  accent: string;
+}
 // CategoryType is now loosely typed to allow custom strings, but keeps specific keys for config lookup
 export type CategoryType = 'digital' | 'fashion' | 'home' | 'beauty' | 'books' | 'sports' | 'health' | 'other' | string;
 export type AiProvider = 'disabled' | 'openai' | 'gemini' | 'anthropic' | 'deepseek' | 'moonshot' | 'qwen' | 'zhipu' | 'doubao' | 'iflow';
@@ -75,6 +97,7 @@ export interface AppState {
   language: Language;
   theme: ThemeColor;
   appearance: AppearanceMode;
+  useDynamicTheme?: boolean;
   aiConfig: AiConfig;
   categories: string[];
   statuses: string[];
@@ -120,9 +143,6 @@ declare global {
     Android?: AndroidInterface;
   }
 }
-
-
-
 
 
 

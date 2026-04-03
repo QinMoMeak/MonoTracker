@@ -12,6 +12,7 @@ import { deleteWebDav, downloadWebDav, existsWebDav, uploadWebDav } from './serv
 import { AI_PROVIDERS, getModelMeta, getProviderMeta, getProviderModels } from './services/aiProviders';
 import { formatCurrency } from './utils/format';
 import { useDebouncedPersist } from './hooks/useDebouncedPersist';
+import { applyMaterialTheme, loadMaterialTheme, resolveIsDarkMode } from './services/themeService';
 import OwnedTabContainer from './components/OwnedTabContainer';
 import WishlistTabContainer from './components/WishlistTabContainer';
 import StatsTabContainer from './components/StatsTabContainer';
@@ -26,6 +27,9 @@ const App: React.FC = () => {
   const [language, setLanguage] = useState<Language>('zh-CN');
   const [theme, setTheme] = useState<ThemeColor>('blue');
   const [appearance, setAppearance] = useState<AppearanceMode>('system');
+  const [useDynamicTheme, setUseDynamicTheme] = useState(false);
+  const [dynamicThemeSupported, setDynamicThemeSupported] = useState(false);
+  const [dynamicThemeActive, setDynamicThemeActive] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('owned');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
@@ -587,6 +591,9 @@ const App: React.FC = () => {
       if (loaded.language) setLanguage(loaded.language);
       if (loaded.theme) setTheme(loaded.theme);
       if (loaded.appearance) setAppearance(loaded.appearance);
+      if (typeof (loaded as any).useDynamicTheme === 'boolean') {
+        setUseDynamicTheme((loaded as any).useDynamicTheme);
+      }
 
       const legacyCategories = (loaded as any).customCategories || [];
       const legacyChannels = (loaded as any).customChannels || [];
@@ -658,13 +665,14 @@ const App: React.FC = () => {
     language,
     theme,
     appearance,
+    useDynamicTheme,
     aiConfig,
     webdav: webdavConfig,
     autoBackupEnabled,
     lastBackupLocalDate,
     webdavIncludeImages,
     webdavRestoreMode
-  }), [language, theme, appearance, aiConfig, webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages, webdavRestoreMode]);
+  }), [language, theme, appearance, useDynamicTheme, aiConfig, webdavConfig, autoBackupEnabled, lastBackupLocalDate, webdavIncludeImages, webdavRestoreMode]);
 
   const getPersistImageOverrides = useCallback(() => ({ ...itemImagesRef.current }), []);
   const getEmptyPersistImageOverrides = useCallback(() => ({}), []);
@@ -882,29 +890,37 @@ const App: React.FC = () => {
     const root = window.document.documentElement;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    let disposed = false;
 
-    const applyTheme = (isDark: boolean) => {
-        if (isDark) {
-            root.classList.add('dark');
-            metaThemeColor?.setAttribute('content', '#020617'); // slate-950
-        } else {
-            root.classList.remove('dark');
-            metaThemeColor?.setAttribute('content', '#f9fafb'); // gray-50
-        }
+    const applyTheme = async (systemPrefersDark: boolean) => {
+      const isDark = resolveIsDarkMode(appearance, systemPrefersDark);
+      root.classList.toggle('dark', isDark);
+      const { tokens, isDynamic, supported } = await loadMaterialTheme(theme, isDark, useDynamicTheme);
+      if (disposed) return;
+      setDynamicThemeSupported(supported);
+      setDynamicThemeActive(isDynamic);
+      applyMaterialTheme(tokens);
+      metaThemeColor?.setAttribute('content', tokens.surface);
     };
 
-    if (appearance === 'dark') {
-        applyTheme(true);
-    } else if (appearance === 'light') {
-        applyTheme(false);
-    } else {
-        // System
-        applyTheme(mediaQuery.matches);
-        const handler = (e: MediaQueryListEvent) => applyTheme(e.matches);
-        mediaQuery.addEventListener('change', handler);
-        return () => mediaQuery.removeEventListener('change', handler);
+    void applyTheme(mediaQuery.matches);
+
+    if (appearance !== 'system') {
+      return () => {
+        disposed = true;
+      };
     }
-  }, [appearance]);
+
+    const handler = (event: MediaQueryListEvent) => {
+      void applyTheme(event.matches);
+    };
+    mediaQuery.addEventListener('change', handler);
+
+    return () => {
+      disposed = true;
+      mediaQuery.removeEventListener('change', handler);
+    };
+  }, [appearance, theme, useDynamicTheme]);
 
   const openAlert = (message: string, title = TEXTS.notice[language]) =>
     new Promise<void>(resolve => {
@@ -1548,7 +1564,7 @@ const App: React.FC = () => {
 
   // --- Render ---
   return (
-    <div className={`min-h-screen ${themeColors.surface} ${themeColors.onSurface} font-sans transition-colors duration-500`}>
+    <div className={`min-h-screen app-theme-root ${themeColors.surface} ${themeColors.onSurface} font-sans transition-colors duration-500`}>
       {/* Top Bar */}
       <div className="pt-12 px-6 pb-4">
         <h1 className="text-3xl font-bold tracking-tight mb-1">Tracker</h1>
@@ -1569,10 +1585,10 @@ const App: React.FC = () => {
       {activeTab === 'profile' && (
         <div className="p-6 space-y-6 pb-32">
           {/* Quick Access */}
-          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-4 shadow-sm space-y-3 transition-colors">
+          <div className="app-surface-card rounded-[2rem] p-4 shadow-sm space-y-3 transition-colors">
             <button
               onClick={handleOpenQuickStart}
-              className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800"
+              className="w-full flex items-center justify-between p-4 app-surface-muted rounded-2xl"
             >
               <span className="flex items-center gap-3 font-semibold">
                 <ICONS.BookOpen size={20}/> {TEXTS.quickStart[language]}
@@ -1581,7 +1597,7 @@ const App: React.FC = () => {
             </button>
             <button
               onClick={handleOpenAiSettings}
-              className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800"
+              className="w-full flex items-center justify-between p-4 app-surface-muted rounded-2xl"
             >
               <span className="flex items-center gap-3 font-semibold">
                 <ICONS.Sparkles size={20}/> {TEXTS.aiSettings[language]}
@@ -1590,7 +1606,7 @@ const App: React.FC = () => {
             </button>
             <button
               onClick={handleOpenDataManage}
-              className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800"
+              className="w-full flex items-center justify-between p-4 app-surface-muted rounded-2xl"
             >
               <span className="flex items-center gap-3 font-semibold">
                 <ICONS.Database size={20}/> {TEXTS.manageData[language]}
@@ -1599,7 +1615,7 @@ const App: React.FC = () => {
             </button>
             <button
               onClick={handleOpenWebdav}
-              className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800"
+              className="w-full flex items-center justify-between p-4 app-surface-muted rounded-2xl"
             >
               <span className="flex items-center gap-3 font-semibold">
                 <ICONS.Database size={20}/> {TEXTS.webdavTitle[language]}
@@ -1609,7 +1625,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Settings Cards */}
-          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm space-y-6 transition-colors">
+          <div className="app-surface-card rounded-[2rem] p-6 shadow-sm space-y-6 transition-colors">
             {/* Theme Color */}
             <div>
               <h3 className="flex items-center gap-2 font-bold mb-4 opacity-70"><ICONS.Palette size={18}/> {TEXTS.theme[language]}</h3>
@@ -1618,10 +1634,37 @@ const App: React.FC = () => {
                   <button 
                     key={c} 
                     onClick={() => setTheme(c)}
-                    className={`w-12 h-12 rounded-full border-4 ${theme === c ? 'border-gray-300 dark:border-gray-500' : 'border-transparent'}`}
-                    style={{ backgroundColor: c === 'blue' ? '#2563eb' : c === 'green' ? '#059669' : c === 'violet' ? '#7c3aed' : c === 'orange' ? '#ea580c' : '#e11d48' }}
+                    className="w-12 h-12 rounded-full border-4 transition-colors"
+                    style={{
+                      borderColor: theme === c ? 'rgba(var(--md-outline-rgb), 0.55)' : 'transparent',
+                      backgroundColor: c === 'blue' ? '#2563eb' : c === 'green' ? '#059669' : c === 'violet' ? '#7c3aed' : c === 'orange' ? '#ea580c' : '#e11d48'
+                    }}
                   />
                 ))}
+              </div>
+              <div className="mt-4 app-surface-soft rounded-2xl px-4 py-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">{TEXTS.dynamicTheme[language]}</div>
+                    <div className="text-xs app-text-muted mt-1 leading-5">
+                      {TEXTS.dynamicThemeHint[language]}
+                    </div>
+                    <div className="text-[11px] app-text-muted mt-2">
+                      {useDynamicTheme
+                        ? (dynamicThemeSupported && dynamicThemeActive
+                          ? TEXTS.dynamicThemeStatusOn[language]
+                          : TEXTS.dynamicThemeUnsupported[language])
+                        : TEXTS.dynamicThemeStatusOff[language]}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setUseDynamicTheme(prev => !prev)}
+                    className={`w-12 h-7 rounded-full transition-colors flex items-center flex-shrink-0 ${useDynamicTheme ? themeColors.primary : 'app-progress-track'}`}
+                  >
+                    <span className={`block w-5 h-5 bg-white rounded-full transition-transform ${useDynamicTheme ? 'translate-x-6' : 'translate-x-1'}`}></span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1640,7 +1683,7 @@ const App: React.FC = () => {
                         className={`flex flex-col items-center justify-center py-3 rounded-xl gap-1 text-xs font-medium transition-all ${
                             appearance === opt.mode 
                             ? `${themeColors.primary} text-white shadow-md` 
-                            : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'
+                            : 'app-chip'
                         }`}
                     >
                         <opt.icon size={18} />
@@ -1659,7 +1702,7 @@ const App: React.FC = () => {
                   <button 
                     key={l}
                     onClick={() => handleChangeLanguage(l)}
-                    className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${language === l ? `${themeColors.primary} text-white shadow-md` : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'}`}
+                    className={`py-3 px-4 rounded-xl text-sm font-medium transition-all ${language === l ? `${themeColors.primary} text-white shadow-md` : 'app-chip'}`}
                   >
                     {l === 'zh-CN' ? TEXTS.langZhCN[language] : l === 'zh-TW' ? TEXTS.langZhTW[language] : l === 'en' ? TEXTS.langEn[language] : TEXTS.langJa[language]}
                   </button>
@@ -1669,11 +1712,11 @@ const App: React.FC = () => {
           </div>
 
 
-          <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm space-y-4 transition-colors">
-             <button onClick={handleOpenExportModal} className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800">
+          <div className="app-surface-card rounded-[2rem] p-6 shadow-sm space-y-4 transition-colors">
+             <button onClick={handleOpenExportModal} className="w-full flex items-center justify-between p-4 app-surface-muted rounded-2xl">
                 <span className="flex items-center gap-3 font-semibold"><ICONS.Download size={20}/> {TEXTS.export[language]}</span>
              </button>
-             <label className="w-full flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-800/50 rounded-2xl hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer">
+             <label className="w-full flex items-center justify-between p-4 app-surface-muted rounded-2xl cursor-pointer">
                 <span className="flex items-center gap-3 font-semibold"><ICONS.Upload size={20}/> {TEXTS.import[language]}</span>
                 <input type="file" accept=".csv,.zip,application/zip" hidden onChange={handleImport} />
              </label>
@@ -1685,45 +1728,45 @@ const App: React.FC = () => {
       {showExportModal && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pointer-events-none">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={handleCloseExportModal} style={{pointerEvents: 'auto'}} />
-            <div className={`relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl transform transition-transform duration-300 pointer-events-auto ${themeColors.surface}`}>
+            <div className={`relative w-full max-w-lg app-surface-card rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl transform transition-transform duration-300 pointer-events-auto ${themeColors.surface}`}>
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold">{TEXTS.exportTitle[language]}</h2>
-                    <button onClick={handleCloseExportModal} className="p-2 bg-gray-100 dark:bg-slate-800 rounded-full">
+                    <button onClick={handleCloseExportModal} className="p-2 app-icon-button rounded-full">
                         <ICONS.X size={20}/>
                     </button>
                 </div>
                 
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{TEXTS.exportDesc[language]}</p>
+                <p className="text-sm app-text-muted mb-6">{TEXTS.exportDesc[language]}</p>
 
                 <div className="space-y-3 mb-6">
                     <button 
                         onClick={executeFileSave}
-                        className={`w-full py-3 rounded-xl font-bold text-white shadow-lg flex items-center justify-center gap-2 ${themeColors.primary}`}
+                        className={`w-full py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 app-primary-button ${themeColors.primary}`}
                     >
                         <ICONS.Download size={20}/> {TEXTS.btnSaveFile[language]}
                     </button>
                     
                     <button 
                         onClick={executeShare}
-                        className="w-full py-3 rounded-xl font-bold bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 flex items-center justify-center gap-2"
+                        className="w-full py-3 rounded-xl font-bold app-surface-muted flex items-center justify-center gap-2"
                     >
                         <ICONS.Share2 size={20}/> {TEXTS.btnShareFile[language]}
                     </button>
 
                     <button 
                         onClick={executeCopy}
-                        className="w-full py-3 rounded-xl font-bold bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 flex items-center justify-center gap-2"
+                        className="w-full py-3 rounded-xl font-bold app-surface-muted flex items-center justify-center gap-2"
                     >
                         <ICONS.Copy size={20}/> {TEXTS.btnCopy[language]}
                     </button>
                 </div>
 
-                <div className="bg-gray-50 dark:bg-slate-950 p-4 rounded-xl border border-gray-100 dark:border-slate-800">
-                    <p className="text-xs font-semibold text-gray-400 mb-2 uppercase">{TEXTS.manualCopyTip[language]}</p>
+                <div className="app-surface-soft p-4 rounded-xl">
+                    <p className="text-xs font-semibold app-text-muted mb-2 uppercase">{TEXTS.manualCopyTip[language]}</p>
                     <textarea 
                         readOnly 
                         value={exportData} 
-                        className="w-full h-32 bg-transparent text-xs font-mono text-gray-500 dark:text-gray-400 focus:outline-none resize-none"
+                        className="w-full h-32 bg-transparent text-xs font-mono app-text-muted focus:outline-none resize-none"
                     />
                 </div>
             </div>
@@ -1738,26 +1781,26 @@ const App: React.FC = () => {
         onClose={handleCloseQuickStart}
       >
         <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400 leading-6">
+          <p className="text-sm app-text-muted leading-6">
             {TEXTS.quickStartSubtitle[language]}
           </p>
           <div className="space-y-3">
             {quickStartSteps.map((step, index) => (
               <div
                 key={step.title}
-                className="flex gap-3 p-4 rounded-2xl bg-gray-50 dark:bg-slate-800/50 border border-gray-100 dark:border-slate-700"
+                className="flex gap-3 p-4 rounded-2xl app-surface-soft"
               >
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${themeColors.primary}`}>
                   {index + 1}
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">{step.title}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 leading-6 mt-1">{step.desc}</div>
+                  <div className="text-sm font-semibold">{step.title}</div>
+                  <div className="text-xs app-text-muted leading-6 mt-1">{step.desc}</div>
                 </div>
               </div>
             ))}
           </div>
-          <div className="text-xs text-gray-400 dark:text-gray-500 leading-6 px-1">
+          <div className="text-xs app-text-muted leading-6 px-1">
             {TEXTS.quickStartTip[language]}
           </div>
         </div>
@@ -1772,7 +1815,7 @@ const App: React.FC = () => {
         <div className="space-y-5">
           <div>
             <p className="text-xs font-semibold opacity-50 mb-3 uppercase">{TEXTS.aiProvider[language]}</p>
-            <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-3">{TEXTS.aiProviderHint[language]}</p>
+            <p className="text-[11px] app-text-muted mb-3">{TEXTS.aiProviderHint[language]}</p>
             <div className="max-h-56 overflow-y-auto no-scrollbar overscroll-contain pr-1">
               <div className="grid grid-cols-3 gap-2">
                 {AI_PROVIDERS.map(provider => {
@@ -1784,7 +1827,7 @@ const App: React.FC = () => {
                       className={`min-h-[3rem] px-2 py-2 rounded-xl text-[11px] leading-tight font-semibold transition-all break-words ${
                         isSelected
                           ? `${themeColors.primary} text-white shadow-md`
-                          : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400'
+                          : 'app-chip'
                       }`}
                     >
                       {TEXTS[provider.labelKey][language]}
@@ -1798,24 +1841,24 @@ const App: React.FC = () => {
           {aiEnabled && (
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.aiModel[language]}</label>
+                <label className="text-xs font-bold app-text-muted ml-2 mb-1 block uppercase">{TEXTS.aiModel[language]}</label>
                 <div className="relative">
                   <select
                     value={aiConfig.model || providerModels[0]?.id || ''}
                     onChange={(e) => handleSelectModel(e.target.value)}
-                    className="w-full appearance-none p-4 pr-10 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                    className="w-full appearance-none p-4 pr-10 app-field rounded-2xl focus:outline-none focus:ring-2 focus:ring-opacity-50"
                     style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
                   >
                     {providerModels.map(model => (
                       <option key={model.id} value={model.id}>{model.label}</option>
                     ))}
                   </select>
-                  <ICONS.ChevronDown size={16} className="absolute right-4 top-4 text-gray-400 pointer-events-none" />
+                  <ICONS.ChevronDown size={16} className="absolute right-4 top-4 app-text-muted pointer-events-none" />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.aiApiKey[language]}</label>
+                <label className="text-xs font-bold app-text-muted ml-2 mb-1 block uppercase">{TEXTS.aiApiKey[language]}</label>
                 <input
                   type="text"
                   value={currentCredential.apiKey}
@@ -1824,17 +1867,17 @@ const App: React.FC = () => {
                   autoCorrect="off"
                   autoCapitalize="none"
                   spellCheck={false}
-                  className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                  className="w-full p-4 app-field rounded-2xl focus:outline-none focus:ring-2 focus:ring-opacity-50"
                   style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.aiBaseUrl[language]}</label>
+                <label className="text-xs font-bold app-text-muted ml-2 mb-1 block uppercase">{TEXTS.aiBaseUrl[language]}</label>
                 <input
                   value={currentCredential.baseUrl || ''}
                   onChange={(e) => handleUpdateCredential({ baseUrl: e.target.value })}
-                  className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+                  className="w-full p-4 app-field rounded-2xl focus:outline-none focus:ring-2 focus:ring-opacity-50"
                   style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
                   placeholder={baseUrlPlaceholder}
                 />
@@ -1854,14 +1897,14 @@ const App: React.FC = () => {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-semibold opacity-60">{TEXTS.manageCat[language]}</h4>
-              <button onClick={handleAddCategory} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300">
+              <button onClick={handleAddCategory} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full app-chip">
                 <ICONS.Plus size={14}/> {TEXTS.addCategory[language]}
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
               {categories.length === 0 && <p className="text-xs opacity-40">{TEXTS.none[language]}</p>}
               {categories.map(cat => (
-                <div key={cat} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 text-sm">
+                <div key={cat} className="flex items-center gap-2 px-3 py-1.5 rounded-xl app-chip text-sm">
                   <span className="max-w-[120px] truncate">{cat}</span>
                   <button onClick={() => handleEditCategory(cat)} className="opacity-60 hover:opacity-100">
                     <ICONS.Edit3 size={14}/>
@@ -1877,14 +1920,14 @@ const App: React.FC = () => {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-semibold opacity-60">{TEXTS.manageStatus[language]}</h4>
-              <button onClick={handleAddStatus} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300">
+              <button onClick={handleAddStatus} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full app-chip">
                 <ICONS.Plus size={14}/> {TEXTS.addStatus[language]}
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
               {statuses.length === 0 && <p className="text-xs opacity-40">{TEXTS.none[language]}</p>}
               {statuses.map(status => (
-                <div key={status} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 text-sm">
+                <div key={status} className="flex items-center gap-2 px-3 py-1.5 rounded-xl app-chip text-sm">
                   <span className="max-w-[120px] truncate">{status}</span>
                   <button onClick={() => handleEditStatus(status)} className="opacity-60 hover:opacity-100">
                     <ICONS.Edit3 size={14}/>
@@ -1900,14 +1943,14 @@ const App: React.FC = () => {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-semibold opacity-60">{TEXTS.manageChan[language]}</h4>
-              <button onClick={handleAddChannel} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300">
+              <button onClick={handleAddChannel} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full app-chip">
                 <ICONS.Plus size={14}/> {TEXTS.addChannel[language]}
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
               {channels.length === 0 && <p className="text-xs opacity-40">{TEXTS.none[language]}</p>}
               {channels.map(chan => (
-                <div key={chan} className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-slate-800 text-sm">
+                <div key={chan} className="flex items-center gap-2 px-3 py-1.5 rounded-xl app-chip text-sm">
                   <span className="max-w-[120px] truncate">{chan}</span>
                   <button onClick={() => handleEditChannel(chan)} className="opacity-60 hover:opacity-100">
                     <ICONS.Edit3 size={14}/>
@@ -1930,61 +1973,61 @@ const App: React.FC = () => {
       >
         <div className="space-y-4">
           <div>
-            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.webdavServer[language]}</label>
+            <label className="text-xs font-bold app-text-muted ml-2 mb-1 block uppercase">{TEXTS.webdavServer[language]}</label>
             <input
               type="text"
               value={webdavConfig.serverUrl}
               onChange={(e) => setWebdavConfig(prev => ({ ...prev, serverUrl: e.target.value }))}
-              className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+              className="w-full p-4 app-field rounded-2xl focus:outline-none focus:ring-2 focus:ring-opacity-50"
               style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
             />
           </div>
           <div>
-            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.webdavUser[language]}</label>
+            <label className="text-xs font-bold app-text-muted ml-2 mb-1 block uppercase">{TEXTS.webdavUser[language]}</label>
             <input
               type="text"
               value={webdavConfig.username}
               onChange={(e) => setWebdavConfig(prev => ({ ...prev, username: e.target.value }))}
-              className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+              className="w-full p-4 app-field rounded-2xl focus:outline-none focus:ring-2 focus:ring-opacity-50"
               style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
             />
           </div>
           <div>
-            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.webdavPass[language]}</label>
+            <label className="text-xs font-bold app-text-muted ml-2 mb-1 block uppercase">{TEXTS.webdavPass[language]}</label>
             <input
               type="password"
               value={webdavConfig.password}
               onChange={(e) => setWebdavConfig(prev => ({ ...prev, password: e.target.value }))}
-              className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50"
+              className="w-full p-4 app-field rounded-2xl focus:outline-none focus:ring-2 focus:ring-opacity-50"
               style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
             />
           </div>
-          <div className="flex items-center justify-between bg-gray-50 dark:bg-slate-800/50 rounded-2xl px-4 py-3">
+          <div className="flex items-center justify-between app-surface-soft rounded-2xl px-4 py-3">
             <div>
               <div className="text-sm font-semibold">{TEXTS.webdavAutoBackup[language]}</div>
-              <div className="text-xs text-gray-400">{TEXTS.webdavAutoBackupHint[language]}</div>
+              <div className="text-xs app-text-muted">{TEXTS.webdavAutoBackupHint[language]}</div>
             </div>
             <button
               onClick={() => setAutoBackupEnabled(prev => !prev)}
-              className={`w-12 h-7 rounded-full transition-colors flex items-center ${autoBackupEnabled ? themeColors.primary : 'bg-gray-300 dark:bg-slate-700'}`}
+              className={`w-12 h-7 rounded-full transition-colors flex items-center ${autoBackupEnabled ? themeColors.primary : 'app-progress-track'}`}
             >
               <span className={`block w-5 h-5 bg-white rounded-full transition-transform ${autoBackupEnabled ? 'translate-x-6' : 'translate-x-1'}`}></span>
             </button>
           </div>
-          <div className="flex items-center justify-between bg-gray-50 dark:bg-slate-800/50 rounded-2xl px-4 py-3">
+          <div className="flex items-center justify-between app-surface-soft rounded-2xl px-4 py-3">
             <div>
               <div className="text-sm font-semibold">{TEXTS.webdavIncludeImages[language]}</div>
-              <div className="text-xs text-gray-400">{TEXTS.webdavIncludeImagesHint[language]}</div>
+              <div className="text-xs app-text-muted">{TEXTS.webdavIncludeImagesHint[language]}</div>
             </div>
             <button
               onClick={() => setWebdavIncludeImages(prev => !prev)}
-              className={`w-12 h-7 rounded-full transition-colors flex items-center ${webdavIncludeImages ? themeColors.primary : 'bg-gray-300 dark:bg-slate-700'}`}
+              className={`w-12 h-7 rounded-full transition-colors flex items-center ${webdavIncludeImages ? themeColors.primary : 'app-progress-track'}`}
             >
               <span className={`block w-5 h-5 bg-white rounded-full transition-transform ${webdavIncludeImages ? 'translate-x-6' : 'translate-x-1'}`}></span>
             </button>
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.webdavRestoreMode[language]}</label>
+            <label className="text-xs font-bold app-text-muted ml-2 mb-1 block uppercase">{TEXTS.webdavRestoreMode[language]}</label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -1992,11 +2035,11 @@ const App: React.FC = () => {
                 className={`w-full text-left p-3 rounded-2xl border transition-colors ${
                   webdavRestoreMode === 'overwrite'
                     ? `${themeColors.primary} text-white border-transparent`
-                    : 'bg-gray-50 dark:bg-slate-800/50 text-gray-700 dark:text-gray-200 border-gray-100 dark:border-slate-700'
+                    : 'app-surface-soft border-transparent'
                 }`}
               >
                 <div className="text-sm font-semibold">{TEXTS.webdavRestoreOverwrite[language]}</div>
-                <div className={`text-[10px] ${webdavRestoreMode === 'overwrite' ? 'text-white/80' : 'text-gray-400'}`}>
+                <div className={`text-[10px] ${webdavRestoreMode === 'overwrite' ? 'text-white/80' : 'app-text-muted'}`}>
                   {TEXTS.webdavRestoreOverwriteHint[language]}
                 </div>
               </button>
@@ -2006,11 +2049,11 @@ const App: React.FC = () => {
                 className={`w-full text-left p-3 rounded-2xl border transition-colors ${
                   webdavRestoreMode === 'merge'
                     ? `${themeColors.primary} text-white border-transparent`
-                    : 'bg-gray-50 dark:bg-slate-800/50 text-gray-700 dark:text-gray-200 border-gray-100 dark:border-slate-700'
+                    : 'app-surface-soft border-transparent'
                 }`}
               >
                 <div className="text-sm font-semibold">{TEXTS.webdavRestoreMerge[language]}</div>
-                <div className={`text-[10px] ${webdavRestoreMode === 'merge' ? 'text-white/80' : 'text-gray-400'}`}>
+                <div className={`text-[10px] ${webdavRestoreMode === 'merge' ? 'text-white/80' : 'app-text-muted'}`}>
                   {TEXTS.webdavRestoreMergeHint[language]}
                 </div>
               </button>
@@ -2018,19 +2061,19 @@ const App: React.FC = () => {
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.webdavRecentBackups[language]}</label>
+              <label className="text-xs font-bold app-text-muted ml-2 mb-1 block uppercase">{TEXTS.webdavRecentBackups[language]}</label>
               <button
                 type="button"
                 onClick={() => void refreshWebDavHistory()}
-                className="text-xs font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="text-xs font-semibold app-text-muted hover:opacity-80"
               >
                 {TEXTS.webdavRefresh[language]}
               </button>
             </div>
             {webdavHistoryLoading ? (
-              <div className="text-xs text-gray-400 px-2">{TEXTS.webdavLoadingBackups[language]}</div>
+              <div className="text-xs app-text-muted px-2">{TEXTS.webdavLoadingBackups[language]}</div>
             ) : webdavHistory.length === 0 ? (
-              <div className="text-xs text-gray-400 px-2">{TEXTS.webdavNoBackups[language]}</div>
+              <div className="text-xs app-text-muted px-2">{TEXTS.webdavNoBackups[language]}</div>
             ) : (
               <div className="space-y-2">
                 {webdavHistory.map(entry => {
@@ -2044,11 +2087,11 @@ const App: React.FC = () => {
                       className={`w-full text-left p-3 rounded-2xl border transition-colors ${
                         selected
                           ? `${themeColors.primary} text-white border-transparent`
-                          : 'bg-gray-50 dark:bg-slate-800/50 text-gray-700 dark:text-gray-200 border-gray-100 dark:border-slate-700'
+                          : 'app-surface-soft border-transparent'
                       }`}
                     >
                       <div className="text-sm font-semibold">{formatBackupLabel(entry)}</div>
-                      <div className={`text-xs ${selected ? 'text-white/80' : 'text-gray-400'}`}>
+                      <div className={`text-xs ${selected ? 'text-white/80' : 'app-text-muted'}`}>
                         {entry.id}{sizeLabel ? ` | ${sizeLabel}` : ''}
                       </div>
                     </button>
@@ -2060,13 +2103,13 @@ const App: React.FC = () => {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={handleWebDavUpload}
-              className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 font-semibold"
+              className="flex items-center justify-center gap-2 py-3 rounded-2xl app-chip font-semibold"
             >
               <ICONS.Upload size={18}/> {TEXTS.webdavUpload[language]}
             </button>
             <button
               onClick={handleWebDavDownload}
-              className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-200 font-semibold"
+              className="flex items-center justify-center gap-2 py-3 rounded-2xl app-chip font-semibold"
             >
               <ICONS.Download size={18}/> {TEXTS.webdavDownload[language]}
             </button>
@@ -2163,10 +2206,10 @@ const App: React.FC = () => {
       </div>
 
       {/* Floating Bottom Navigation */}
-      <div className="fixed bottom-6 left-6 right-6 h-20 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl rounded-full z-30 flex items-center justify-around px-2 border border-white/50 dark:border-slate-800/50 transition-colors">
+      <div className="fixed bottom-6 left-6 right-6 h-20 app-nav-shell backdrop-blur-md shadow-2xl rounded-full z-30 flex items-center justify-around px-2 transition-colors">
         <button 
             onClick={() => handleChangeTab('owned')}
-            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'owned' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
+            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'owned' ? `${themeColors.secondary} app-nav-active` : 'app-text-muted'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'owned' ? themeColors.container : 'bg-transparent'}`}>
                 <ICONS.Home size={22} strokeWidth={activeTab === 'owned' ? 2.5 : 2} />
@@ -2176,7 +2219,7 @@ const App: React.FC = () => {
         
         <button 
             onClick={() => handleChangeTab('wishlist')}
-            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'wishlist' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
+            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'wishlist' ? `${themeColors.secondary} app-nav-active` : 'app-text-muted'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'wishlist' ? themeColors.container : 'bg-transparent'}`}>
                 <ICONS.Heart size={22} strokeWidth={activeTab === 'wishlist' ? 2.5 : 2} />
@@ -2186,7 +2229,7 @@ const App: React.FC = () => {
 
         <button 
             onClick={() => handleChangeTab('stats')}
-            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'stats' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
+            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'stats' ? `${themeColors.secondary} app-nav-active` : 'app-text-muted'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'stats' ? themeColors.container : 'bg-transparent'}`}>
                 <ICONS.PieChart size={22} strokeWidth={activeTab === 'stats' ? 2.5 : 2} />
@@ -2196,7 +2239,7 @@ const App: React.FC = () => {
 
         <button 
             onClick={() => handleChangeTab('profile')}
-            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'profile' ? `${themeColors.secondary} bg-gray-50/50 dark:bg-slate-800/50` : 'text-gray-400 dark:text-slate-600'}`}
+            className={`flex flex-col items-center justify-center w-full h-full rounded-full transition-all duration-300 gap-1 ${activeTab === 'profile' ? `${themeColors.secondary} app-nav-active` : 'app-text-muted'}`}
         >
             <div className={`p-1 rounded-full ${activeTab === 'profile' ? themeColors.container : 'bg-transparent'}`}>
                 <ICONS.User size={22} strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
@@ -2232,7 +2275,7 @@ const App: React.FC = () => {
             <button
               type="button"
               onClick={handleCloseImagePreview}
-              className="absolute -top-4 -right-4 w-10 h-10 rounded-full bg-white/90 text-gray-700 shadow-lg flex items-center justify-center"
+              className="absolute -top-4 -right-4 w-10 h-10 rounded-full app-surface-card shadow-lg flex items-center justify-center"
             >
               <ICONS.X size={18} />
             </button>

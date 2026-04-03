@@ -143,17 +143,17 @@ const OwnedTabContainer: React.FC<Props> = ({
       <div className="px-6 mb-3 space-y-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <ICONS.Search size={16} className="absolute left-4 top-4 text-gray-400" />
+            <ICONS.Search size={16} className="absolute left-4 top-4 app-text-muted" />
             <input
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
               placeholder={TEXTS.searchPlaceholder[language]}
-              className="w-full rounded-2xl border border-gray-100 bg-white p-4 pl-10 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+              className="w-full rounded-2xl app-field p-4 pl-10 shadow-sm"
             />
           </div>
           <button
             onClick={() => setShowAdvancedFilters(prev => !prev)}
-            className="flex items-center gap-2 rounded-2xl bg-gray-100 px-4 py-3 text-xs font-semibold text-gray-600 dark:bg-slate-800 dark:text-gray-300"
+            className="flex items-center gap-2 rounded-2xl app-surface-muted px-4 py-3 text-xs font-semibold"
           >
             <ICONS.SlidersHorizontal size={16} />
             {TEXTS.advancedFilter[language]}
@@ -161,51 +161,51 @@ const OwnedTabContainer: React.FC<Props> = ({
         </div>
 
         {showAdvancedFilters && (
-          <div className="space-y-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="space-y-3 rounded-2xl app-surface-card p-4 shadow-sm">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="ml-1 mb-1 block text-[10px] font-semibold uppercase text-gray-400">{TEXTS.dateStart[language]}</label>
+                <label className="ml-1 mb-1 block text-[10px] font-semibold uppercase app-text-muted">{TEXTS.dateStart[language]}</label>
                 <input
                   type="date"
                   value={filterDateStart}
                   onChange={event => setFilterDateStart(event.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white p-3 [color-scheme:light] dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:[color-scheme:dark]"
+                  className="w-full rounded-xl app-field p-3 [color-scheme:light] dark:[color-scheme:dark]"
                 />
               </div>
               <div>
-                <label className="ml-1 mb-1 block text-[10px] font-semibold uppercase text-gray-400">{TEXTS.dateEnd[language]}</label>
+                <label className="ml-1 mb-1 block text-[10px] font-semibold uppercase app-text-muted">{TEXTS.dateEnd[language]}</label>
                 <input
                   type="date"
                   value={filterDateEnd}
                   onChange={event => setFilterDateEnd(event.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white p-3 [color-scheme:light] dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:[color-scheme:dark]"
+                  className="w-full rounded-xl app-field p-3 [color-scheme:light] dark:[color-scheme:dark]"
                 />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="ml-1 mb-1 block text-[10px] font-semibold uppercase text-gray-400">{TEXTS.priceMin[language]}</label>
+                <label className="ml-1 mb-1 block text-[10px] font-semibold uppercase app-text-muted">{TEXTS.priceMin[language]}</label>
                 <input
                   type="number"
                   value={filterPriceMin}
                   onChange={event => setFilterPriceMin(event.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full rounded-xl app-field p-3"
                 />
               </div>
               <div>
-                <label className="ml-1 mb-1 block text-[10px] font-semibold uppercase text-gray-400">{TEXTS.priceMax[language]}</label>
+                <label className="ml-1 mb-1 block text-[10px] font-semibold uppercase app-text-muted">{TEXTS.priceMax[language]}</label>
                 <input
                   type="number"
                   value={filterPriceMax}
                   onChange={event => setFilterPriceMax(event.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="w-full rounded-xl app-field p-3"
                 />
               </div>
             </div>
             <div className="flex justify-end">
               <button
                 onClick={handleClearFilters}
-                className="rounded-full bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-500 dark:bg-slate-800 dark:text-gray-300"
+                className="rounded-full app-chip px-3 py-2 text-xs font-semibold"
               >
                 {TEXTS.clearFilter[language]}
               </button>
@@ -218,7 +218,7 @@ const OwnedTabContainer: React.FC<Props> = ({
         <div className="no-scrollbar flex gap-2 overflow-x-auto py-2">
           <button
             onClick={() => setActiveFilter('all')}
-            className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold transition-all ${activeFilter === 'all' ? `${themeColors.primary} text-white shadow-md` : 'bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-gray-400'}`}
+            className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold transition-all ${activeFilter === 'all' ? `${themeColors.primary} text-white shadow-md` : 'app-chip'}`}
           >
             {TEXTS.filterAll[language]}
           </button>
@@ -226,7 +226,7 @@ const OwnedTabContainer: React.FC<Props> = ({
             <button
               key={filterValue}
               onClick={() => setActiveFilter(filterValue)}
-              className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold transition-all ${activeFilter === filterValue ? `${themeColors.primary} text-white shadow-md` : 'bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-gray-400'}`}
+              className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold transition-all ${activeFilter === filterValue ? `${themeColors.primary} text-white shadow-md` : 'app-chip'}`}
             >
               {getStatusLabel(filterValue)}
             </button>
@@ -251,7 +251,7 @@ const OwnedTabContainer: React.FC<Props> = ({
           <div className="pointer-events-auto flex items-center gap-2">
             <button
               onClick={() => onOpenAdd('manual')}
-              className="flex h-14 w-14 items-center justify-center rounded-[1.5rem] border border-gray-100 bg-white text-gray-700 shadow-lg transition-transform hover:scale-105 active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200"
+              className="flex h-14 w-14 items-center justify-center rounded-[1.5rem] app-surface-card shadow-lg transition-transform hover:scale-105 active:scale-95"
             >
               <ICONS.Edit3 size={24} />
             </button>
@@ -261,7 +261,7 @@ const OwnedTabContainer: React.FC<Props> = ({
         <div className="pointer-events-auto flex items-center gap-2">
           <button
             onClick={() => onOpenAdd(aiEnabled ? 'ai' : 'manual')}
-            className={`flex h-14 w-14 items-center justify-center rounded-[1.5rem] text-white shadow-xl transition-transform hover:scale-105 active:scale-95 ${themeColors.primary}`}
+            className={`flex h-14 w-14 items-center justify-center rounded-[1.5rem] app-primary-button shadow-xl transition-transform hover:scale-105 active:scale-95 ${themeColors.primary}`}
           >
             {aiEnabled ? <ICONS.Sparkles size={24} /> : <ICONS.Plus size={28} />}
           </button>

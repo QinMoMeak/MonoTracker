@@ -3,23 +3,126 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --md-primary: #7051C8;
+    --md-on-primary: #FFFFFF;
+    --md-primary-container: #EADCFF;
+    --md-on-primary-container: #25005A;
+    --md-secondary: #625B71;
+    --md-on-secondary: #FFFFFF;
+    --md-secondary-container: #E8DEF8;
+    --md-on-secondary-container: #1E192B;
+    --md-surface: #FCF8FF;
+    --md-on-surface: #1D1B20;
+    --md-surface-variant: #E6E0EB;
+    --md-on-surface-variant: #49454F;
+    --md-outline: #7A757F;
+    --md-error: #BA1A1A;
+    --md-primary-rgb: 112 81 200;
+    --md-surface-rgb: 252 248 255;
+    --md-outline-rgb: 122 117 127;
+    --md-error-rgb: 186 26 26;
+    --app-bg: var(--md-surface);
+    --app-card: var(--md-surface);
+    --app-card-muted: var(--md-surface-variant);
+    --app-nav-bg: rgba(var(--md-surface-rgb), 0.88);
+  }
+
   html {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "Droid Sans Fallback", "Helvetica Neue", Arial, sans-serif;
   }
 
   body {
-    background-color: rgb(249 250 251);
-    color: rgb(17 24 39);
+    background-color: var(--app-bg);
+    color: var(--md-on-surface);
     -webkit-tap-highlight-color: transparent;
-  }
-
-  .dark body {
-    background-color: rgb(2 6 23);
-    color: rgb(243 244 246);
   }
 }
 
 @layer utilities {
+  .app-theme-root {
+    background-color: var(--app-bg);
+    color: var(--md-on-surface);
+  }
+
+  .app-surface-card {
+    background-color: var(--app-card);
+    color: var(--md-on-surface);
+    border: 1px solid rgba(var(--md-outline-rgb), 0.24);
+  }
+
+  .app-surface-muted {
+    background-color: rgba(var(--md-primary-rgb), 0.08);
+    color: var(--md-on-surface);
+    border: 1px solid rgba(var(--md-outline-rgb), 0.16);
+  }
+
+  .app-surface-soft {
+    background-color: rgba(var(--md-outline-rgb), 0.08);
+    color: var(--md-on-surface);
+    border: 1px solid rgba(var(--md-outline-rgb), 0.12);
+  }
+
+  .app-field {
+    background-color: var(--app-card-muted);
+    color: var(--md-on-surface);
+    border: 1px solid rgba(var(--md-outline-rgb), 0.2);
+  }
+
+  .app-chip {
+    background-color: rgba(var(--md-primary-rgb), 0.08);
+    color: var(--md-on-surface-variant);
+    border: 1px solid rgba(var(--md-outline-rgb), 0.16);
+  }
+
+  .app-chip-active {
+    background-color: var(--md-primary-container);
+    color: var(--md-on-primary-container);
+    border: 1px solid transparent;
+  }
+
+  .app-progress-track {
+    background-color: rgba(var(--md-outline-rgb), 0.16);
+  }
+
+  .app-timeline-line {
+    border-color: rgba(var(--md-outline-rgb), 0.2);
+  }
+
+  .app-primary-button {
+    background-color: var(--md-primary);
+    color: var(--md-on-primary);
+  }
+
+  .app-danger-button {
+    background-color: rgba(var(--md-error-rgb), 0.1);
+    color: var(--md-error);
+    border: 1px solid rgba(var(--md-error-rgb), 0.18);
+  }
+
+  .app-icon-button {
+    background-color: rgba(var(--md-primary-rgb), 0.08);
+    color: var(--md-on-surface);
+  }
+
+  .app-nav-shell {
+    background-color: var(--app-nav-bg);
+    border: 1px solid rgba(var(--md-outline-rgb), 0.16);
+  }
+
+  .app-nav-active {
+    background-color: rgba(var(--md-primary-rgb), 0.08);
+    color: var(--md-primary);
+  }
+
+  .app-divider {
+    border-color: rgba(var(--md-outline-rgb), 0.16);
+  }
+
+  .app-text-muted {
+    color: var(--md-on-surface-variant);
+  }
+
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }

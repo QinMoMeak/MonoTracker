@@ -71,23 +71,23 @@ const Dialog: React.FC<DialogProps> = ({
         style={{ pointerEvents: 'auto' }}
       />
       <div
-        className={`relative w-full max-w-md bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl pointer-events-auto ${themeColors.surface}`}
+        className={`relative w-full max-w-md app-surface-card rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl pointer-events-auto ${themeColors.surface}`}
         style={{ marginBottom: keyboardInset ? keyboardInset + 8 : undefined }}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-800 dark:text-white">{title}</h3>
+          <h3 className="text-lg font-bold">{title}</h3>
           {onCancel && (
             <button
               type="button"
               onClick={onCancel}
-              className="p-2 bg-gray-100 dark:bg-slate-800 rounded-full hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-800 dark:text-gray-200"
+              className="p-2 app-icon-button rounded-full"
             >
               <ICONS.X size={18} />
             </button>
           )}
         </div>
 
-        {message && <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 whitespace-pre-line">{message}</p>}
+        {message && <p className="text-sm app-text-muted mb-4 whitespace-pre-line">{message}</p>}
 
         {type === 'prompt' && (
           <input
@@ -99,7 +99,7 @@ const Dialog: React.FC<DialogProps> = ({
               }, 200);
             }}
             placeholder={placeholder}
-            className="w-full p-4 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-opacity-50 mb-5"
+            className="w-full p-4 app-field rounded-2xl focus:outline-none focus:ring-2 focus:ring-opacity-50 mb-5"
             style={{ '--tw-ring-color': `var(--theme-color-${theme})` } as any}
           />
         )}
@@ -109,7 +109,7 @@ const Dialog: React.FC<DialogProps> = ({
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 py-3 rounded-full font-semibold bg-gray-200 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-slate-700 transition-colors"
+              className="flex-1 py-3 rounded-full font-semibold app-surface-muted transition-colors"
             >
               {cancelText}
             </button>
@@ -117,7 +117,7 @@ const Dialog: React.FC<DialogProps> = ({
           <button
             type="button"
             onClick={() => onConfirm(type === 'prompt' ? value.trim() : undefined)}
-            className={`flex-1 py-3 rounded-full font-semibold text-white shadow-lg ${themeColors.primary}`}
+            className={`flex-1 py-3 rounded-full font-semibold shadow-lg app-primary-button ${themeColors.primary}`}
           >
             {confirmText}
           </button>

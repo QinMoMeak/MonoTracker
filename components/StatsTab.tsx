@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Item, Language } from '../types';
 import { formatDate, formatMonth } from '../utils/date';
 import { formatCurrency } from '../utils/format';
+import { getCategoryBadgeStyle, getCategoryBarStyle, getCategoryIconStyle } from '../utils/categoryTheme';
 
 type StatsData = {
   totalVal: number;
@@ -20,7 +21,7 @@ type StatsTabProps = {
   language: Language;
   TEXTS: Record<string, Record<string, string>>;
   ICONS: Record<string, React.ElementType>;
-  CATEGORY_CONFIG: Record<string, { icon: React.ElementType; bg: string; color: string; labelKey: string }>;
+  CATEGORY_CONFIG: Record<string, { icon: React.ElementType; accent: string; labelKey: string }>;
   themeColors: { primary: string; secondary: string; container: string };
   formatNumber: (value: number, decimals?: number) => string;
   toNumber: (value: unknown) => number;
@@ -70,18 +71,18 @@ const StatsTab: React.FC<StatsTabProps> = ({
           <ICONS.PieChart size={20} /> {TEXTS.statsOverview[language]}
         </h2>
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
+          <div className="app-surface-card p-5 rounded-[2rem] shadow-sm transition-colors">
             <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.totalValue[language]}</p>
             <p className={`text-2xl font-light ${themeColors.secondary}`}>{formatCurrency(stats.totalVal, 'CNY', language)}</p>
           </div>
-          <div className="bg-white dark:bg-slate-900 p-5 rounded-[2rem] shadow-sm transition-colors">
+          <div className="app-surface-card p-5 rounded-[2rem] shadow-sm transition-colors">
             <p className="text-xs opacity-50 uppercase font-bold mb-1">{TEXTS.itemCount[language]}</p>
-            <p className="text-2xl font-light text-gray-800 dark:text-gray-100">{stats.totalCount}</p>
+            <p className="text-2xl font-light">{stats.totalCount}</p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+      <div className="app-surface-card p-6 rounded-[2rem] shadow-sm transition-colors">
         <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
           <ICONS.BarChart2 size={16} /> {TEXTS.statsMonthlyTrend[language]}
         </h3>
@@ -92,12 +93,12 @@ const StatsTab: React.FC<StatsTabProps> = ({
           {monthlySpendRows.map(({ month, value }) => {
             const width = monthlyMaxValue > 0 ? Math.max(8, (value / monthlyMaxValue) * 100) : 0;
             return (
-              <div key={month} className="rounded-2xl border border-gray-100 dark:border-slate-800 bg-gray-50/70 dark:bg-slate-800/40 px-4 py-3">
+              <div key={month} className="rounded-2xl app-surface-soft px-4 py-3">
                 <div className="flex items-center justify-between text-sm mb-2 gap-4">
-                  <span className="font-semibold text-gray-700 dark:text-gray-200">{month}</span>
+                  <span className="font-semibold">{month}</span>
                   <span className={`font-mono font-semibold ${themeColors.secondary}`}>{formatCurrency(value, 'CNY', language, { maximumFractionDigits: 0 })}</span>
                 </div>
-                <div className="h-2 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
+                <div className="h-2 rounded-full app-progress-track overflow-hidden">
                   <div className={`h-full rounded-full ${themeColors.primary}`} style={{ width: `${width}%` }} />
                 </div>
               </div>
@@ -106,7 +107,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+      <div className="app-surface-card p-6 rounded-[2rem] shadow-sm transition-colors">
         <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
           <ICONS.Layers size={16} /> {TEXTS.statsStatusDist[language]}
         </h3>
@@ -117,7 +118,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
                 <span className="capitalize font-medium">{getStatusLabel(stat.status)}</span>
                 <span className="opacity-60">{stat.count} ({stat.percent.toFixed(1)}%)</span>
               </div>
-              <div className="h-2 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-2 app-progress-track rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${themeColors.primary}`} style={{ width: `${stat.percent}%`, opacity: 0.7 }} />
               </div>
             </div>
@@ -126,7 +127,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+      <div className="app-surface-card p-6 rounded-[2rem] shadow-sm transition-colors">
         <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
           <ICONS.Clock size={16} /> {TEXTS.statsDuration[language]}
         </h3>
@@ -143,7 +144,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
                   <span className="font-medium">{label}</span>
                   <span className="opacity-60">{formatNumber(value, 0)}</span>
                 </div>
-                <div className="h-2 bg-gray-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-2 app-progress-track rounded-full overflow-hidden">
                   <div className={`h-full rounded-full ${themeColors.primary}`} style={{ width: `${width}%`, opacity: 0.7 }} />
                 </div>
               </div>
@@ -152,7 +153,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+      <div className="app-surface-card p-6 rounded-[2rem] shadow-sm transition-colors">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-bold opacity-70 flex items-center gap-2">
             <ICONS.BarChart2 size={16} /> {TEXTS.statsCategoryTrend[language]}
@@ -165,7 +166,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
                 className={`px-2 py-1 text-[10px] font-bold rounded-full transition-all ${
                   topN === count
                     ? `${themeColors.primary} text-white`
-                    : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-gray-400'
+                    : 'app-chip'
                 }`}
               >
                 TOP {count}
@@ -181,17 +182,17 @@ const StatsTab: React.FC<StatsTabProps> = ({
               <div key={stat.cat}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <div className={`p-1 rounded-md ${conf.bg}`}>
-                      <Icon size={12} className={conf.color} />
+                    <div className="p-1 rounded-md" style={getCategoryBadgeStyle(conf)}>
+                      <Icon size={12} style={getCategoryIconStyle(conf)} />
                     </div>
                     <span className="text-sm font-medium">{getCategoryLabel(stat.cat)}</span>
                   </div>
                   <span className="text-sm font-bold">{formatCurrency(stat.value, 'CNY', language)}</span>
                 </div>
-                <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-1.5 w-full app-progress-track rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${conf.color.replace(/text-(\w+)-(\d+)/, 'bg-$1-$2')}`}
-                    style={{ width: `${stat.percentVal}%` }}
+                    className="h-full rounded-full"
+                    style={{ ...getCategoryBarStyle(conf), width: `${stat.percentVal}%` }}
                   />
                 </div>
               </div>
@@ -201,7 +202,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+      <div className="app-surface-card p-6 rounded-[2rem] shadow-sm transition-colors">
         <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
           <ICONS.BarChart2 size={16} /> {TEXTS.statsChannelTrend[language]}
         </h3>
@@ -212,7 +213,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
                 <span className="text-sm font-medium">{getChannelLabel(stat.channel)}</span>
                 <span className="text-sm font-bold">{formatCurrency(stat.value, 'CNY', language)}</span>
               </div>
-              <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+              <div className="h-1.5 w-full app-progress-track rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full ${themeColors.primary}`}
                   style={{ width: `${stat.percentVal}%`, opacity: 0.7 }}
@@ -224,7 +225,7 @@ const StatsTab: React.FC<StatsTabProps> = ({
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+      <div className="app-surface-card p-6 rounded-[2rem] shadow-sm transition-colors">
         <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
           <ICONS.BarChart2 size={16} /> {TEXTS.statsCountDist[language]}
         </h3>
@@ -236,17 +237,17 @@ const StatsTab: React.FC<StatsTabProps> = ({
               <div key={stat.cat}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <div className={`p-1 rounded-md ${conf.bg}`}>
-                      <Icon size={12} className={conf.color} />
+                    <div className="p-1 rounded-md" style={getCategoryBadgeStyle(conf)}>
+                      <Icon size={12} style={getCategoryIconStyle(conf)} />
                     </div>
                     <span className="text-sm font-medium">{getCategoryLabel(stat.cat)}</span>
                   </div>
                   <span className="text-sm font-bold">{stat.count}</span>
                 </div>
-                <div className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                <div className="h-1.5 w-full app-progress-track rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${conf.color.replace(/text-(\w+)-(\d+)/, 'bg-$1-$2')}`}
-                    style={{ width: `${stat.percentCount}%` }}
+                    className="h-full rounded-full"
+                    style={{ ...getCategoryBarStyle(conf), width: `${stat.percentCount}%` }}
                   />
                 </div>
               </div>
@@ -256,20 +257,23 @@ const StatsTab: React.FC<StatsTabProps> = ({
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] shadow-sm transition-colors">
+      <div className="app-surface-card p-6 rounded-[2rem] shadow-sm transition-colors">
         <h3 className="text-sm font-bold opacity-70 mb-4 flex items-center gap-2">
           <ICONS.TrendingUp size={16} /> {TEXTS.statsTimeline[language]}
         </h3>
-        <div className="space-y-0 relative border-l-2 border-gray-100 dark:border-slate-800 ml-2">
+        <div className="space-y-0 relative border-l-2 app-timeline-line ml-2">
           {stats.timelineData.slice(0, 10).map(item => (
             <div key={item.id} className="mb-6 ml-4 relative">
-              <div className={`absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 ${themeColors.primary}`} />
+              <div
+                className={`absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 ${themeColors.primary}`}
+                style={{ borderColor: 'var(--app-card)' }}
+              />
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs text-gray-400 font-mono mb-0.5">{formatDate(item.purchaseDate)}</p>
+                  <p className="text-xs app-text-muted font-mono mb-0.5">{formatDate(item.purchaseDate)}</p>
                   <p className="text-sm font-bold">{item.name}</p>
                 </div>
-                <span className="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-slate-800 font-medium capitalize">
+                <span className="text-xs px-2 py-0.5 rounded app-chip font-medium capitalize">
                   {getStatusLabel(item.status)}
                 </span>
               </div>

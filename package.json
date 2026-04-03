@@ -1,7 +1,7 @@
 {
   "name": "tracker",
   "private": true,
-  "version": "1.5.25",
+  "version": "1.5.33",
   "type": "module",
   "scripts": {
     "dev": ".\\.tools\\tailwindcss.exe -i ./styles.css -o ./generated/tailwind.css --config ./tailwind.config.js && vite",

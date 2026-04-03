@@ -4,6 +4,7 @@ import { THEMES, ICONS, TEXTS, CATEGORY_CONFIG } from '../constants';
 import { formatDate, formatMonth } from '../utils/date';
 import { formatCurrency } from '../utils/format';
 import { TimelineEntryBase, useTimelineGroups } from '../hooks/useTimelineGroups';
+import { getCategoryBadgeStyle, getCategoryIconStyle } from '../utils/categoryTheme';
 
 interface TimelineProps {
   items: Item[];
@@ -84,7 +85,7 @@ const TimelineImage = React.memo(({
   return (
     <div
       ref={hostRef}
-      className={`w-20 h-20 flex-shrink-0 bg-gray-50 dark:bg-slate-800 rounded-xl overflow-hidden border border-gray-100 dark:border-slate-700 relative ${resolvedSrc && onPreviewImage ? 'cursor-zoom-in' : 'cursor-default'}`}
+      className={`w-20 h-20 flex-shrink-0 app-surface-muted rounded-xl overflow-hidden relative ${resolvedSrc && onPreviewImage ? 'cursor-zoom-in' : 'cursor-default'}`}
       onClick={() => {
         if (resolvedSrc && onPreviewImage) void onPreviewImage(item);
       }}
@@ -92,12 +93,15 @@ const TimelineImage = React.memo(({
       {resolvedSrc ? (
         <img src={resolvedSrc} alt={item.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-gray-600">
+        <div className="w-full h-full flex items-center justify-center app-text-muted">
           <ICONS.ImageIcon size={24} />
         </div>
       )}
-      <div className="absolute top-1 left-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm p-1 rounded-full shadow-sm">
-        <CatIcon size={12} className={catConfig.color} />
+      <div
+        className="absolute top-1 left-1 backdrop-blur-sm p-1 rounded-full shadow-sm"
+        style={getCategoryBadgeStyle(catConfig)}
+      >
+        <CatIcon size={12} style={getCategoryIconStyle(catConfig)} />
       </div>
     </div>
   );
@@ -130,7 +134,7 @@ const TimelineItemCard = React.memo(({
 
   return (
     <div
-      className="relative bg-white dark:bg-slate-900 rounded-[1.5rem] p-4 shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden group transition-colors"
+      className="relative app-surface-card rounded-[1.5rem] p-4 shadow-sm overflow-hidden group transition-colors"
       style={{ contentVisibility: 'auto', containIntrinsicSize: '220px' } as React.CSSProperties}
     >
       <div className="flex gap-4 mb-3">
@@ -143,7 +147,7 @@ const TimelineItemCard = React.memo(({
         />
 
         <div className="flex-1 min-w-0 pr-8">
-          <h3 className="font-bold text-gray-800 dark:text-gray-100 text-base truncate mb-1">{item.name}</h3>
+          <h3 className="font-bold text-base truncate mb-1">{item.name}</h3>
 
           <div className="flex flex-wrap items-center gap-2">
             <span className={`font-mono font-bold text-lg ${themeColors.secondary}`}>
@@ -151,33 +155,33 @@ const TimelineItemCard = React.memo(({
             </span>
             {(item.quantity || 1) > 1 && (
               <>
-                <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-700">
+                <span className="text-[10px] app-chip px-1.5 py-0.5 rounded">
                   x{item.quantity || 1}
                 </span>
-                <span className="text-[10px] text-gray-500 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-700">
+                <span className="text-[10px] app-chip px-1.5 py-0.5 rounded">
                   {TEXTS.avgPrice[language]} {formatCurrency(item.avgPrice ?? (item.price / (item.quantity || 1)), item.currency || 'CNY', language)}
                 </span>
               </>
             )}
             {item.msrp > item.price && (
-              <span className="text-xs text-gray-400 line-through decoration-gray-300 dark:decoration-gray-600">
+              <span className="text-xs app-text-muted line-through" style={{ textDecorationColor: 'rgba(var(--md-outline-rgb), 0.35)' }}>
                 {formatCurrency(item.msrp, item.currency || 'CNY', language)}
               </span>
             )}
             {item.storeName && (
-              <span className="ml-2 text-[10px] text-gray-500 bg-gray-50 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-700">
+              <span className="ml-2 text-[10px] app-chip px-1.5 py-0.5 rounded">
                 {item.storeName}
               </span>
             )}
             {item.channel && (
-              <span className="ml-2 text-[10px] text-gray-500 bg-gray-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-slate-700">
+              <span className="ml-2 text-[10px] app-chip px-1.5 py-0.5 rounded">
                 {getChannelLabel(item.channel, language)}
               </span>
             )}
           </div>
 
           {item.type === 'wishlist' && priceHistoryStats && (
-            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-2">
+            <div className="mt-2 text-xs app-text-muted flex flex-wrap items-center gap-2">
               <span className="uppercase text-[10px] opacity-50">{TEXTS.priceHistoryShort[language]}</span>
               <span>{TEXTS.priceHistoryLatest[language]} {formatCurrency(priceHistoryStats.latest.price, item.currency || 'CNY', language, { maximumFractionDigits: 0 })}</span>
               <span>{TEXTS.priceHistoryMin[language]} {formatCurrency(priceHistoryStats.min, item.currency || 'CNY', language, { maximumFractionDigits: 0 })}</span>
@@ -186,17 +190,17 @@ const TimelineItemCard = React.memo(({
           )}
 
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span className="text-xs text-gray-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1">
+            <span className="text-xs app-chip px-2 py-0.5 rounded-md flex items-center gap-1">
               <ICONS.Calendar size={10} />
               {formatDate(item.purchaseDate)}
             </span>
             {item.status !== 'new' && (
-              <span className="text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-slate-700 px-2 py-0.5 rounded-md capitalize">
+              <span className="text-xs app-chip px-2 py-0.5 rounded-md capitalize">
                 {getStatusLabel(item.status, language)}
               </span>
             )}
             {!CATEGORY_CONFIG[item.category] && (
-              <span className="text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-slate-700 px-2 py-0.5 rounded-md">
+              <span className="text-xs app-chip px-2 py-0.5 rounded-md">
                 {catName}
               </span>
             )}
@@ -208,14 +212,14 @@ const TimelineItemCard = React.memo(({
             e.stopPropagation();
             onEdit(item);
           }}
-          className="absolute top-4 right-4 p-2 text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+          className="absolute top-4 right-4 p-2 app-text-muted hover:opacity-80 transition-colors"
         >
           <ICONS.Edit3 size={18} />
         </button>
       </div>
 
       {item.type === 'owned' && (
-        <div className="pt-3 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+        <div className="pt-3 border-t app-divider flex items-center justify-between text-xs app-text-muted">
           <div className="flex gap-4">
             {showPerDay && (
               <div className="flex flex-col">
@@ -242,17 +246,17 @@ const TimelineItemCard = React.memo(({
           )}
 
           {showPerUse && (
-            <div className="flex items-center gap-2 bg-gray-50 dark:bg-slate-800 rounded-lg p-1 pl-3 pr-1">
+            <div className="flex items-center gap-2 app-surface-muted rounded-lg p-1 pl-3 pr-1">
               <div className="flex items-center gap-1">
-                <ICONS.Activity size={12} className="text-gray-400" />
-                <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{item.usageCount || 0}</span>
+                <ICONS.Activity size={12} className="app-text-muted" />
+                <span className="font-mono font-bold" style={{ color: 'var(--md-on-surface)' }}>{item.usageCount || 0}</span>
               </div>
               <button
                 onClick={e => {
                   e.stopPropagation();
                   onAddUsage(item);
                 }}
-                className={`px-2 py-1 rounded-md text-[10px] font-bold text-white shadow-sm transition-transform active:scale-95 ${themeColors.primary}`}
+                className={`px-2 py-1 rounded-md text-[10px] font-bold shadow-sm transition-transform active:scale-95 app-primary-button ${themeColors.primary}`}
               >
                 {TEXTS.addUsage[language]}
               </button>
@@ -318,7 +322,7 @@ const Timeline: React.FC<TimelineProps> = ({
           <div key={key}>
             <div className="flex items-center gap-3 mb-3 ml-2 sticky top-0 z-10 backdrop-blur-sm">
               <div className={`w-2 h-2 rounded-full ${themeColors.primary}`}></div>
-              <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <h2 className="text-sm font-bold app-text-muted uppercase tracking-wider">
                 {getGroupTitle(key)}
               </h2>
             </div>

@@ -49,7 +49,7 @@ const SheetModal: React.FC<SheetModalProps> = ({ isOpen, title, theme, onClose, 
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={onClose} style={{ pointerEvents: 'auto' }} />
       <div
         className={`
-          relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl
+          relative w-full max-w-lg app-surface-card rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 shadow-2xl
           transform transition-transform duration-300 max-h-[88svh] overflow-y-auto no-scrollbar overscroll-contain pointer-events-auto
           ${themeColors.surface}
         `}
@@ -57,8 +57,8 @@ const SheetModal: React.FC<SheetModalProps> = ({ isOpen, title, theme, onClose, 
         style={{ WebkitOverflowScrolling: 'touch', paddingBottom: keyboardInset ? keyboardInset + 16 : undefined }}
       >
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white">{title}</h2>
-          <button type="button" onClick={onClose} className="p-2 bg-gray-100 dark:bg-slate-800 rounded-full hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-800 dark:text-gray-200">
+          <h2 className="text-xl font-bold">{title}</h2>
+          <button type="button" onClick={onClose} className="p-2 app-icon-button rounded-full">
             <ICONS.X size={20} />
           </button>
         </div>
