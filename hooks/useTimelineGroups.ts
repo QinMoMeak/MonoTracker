@@ -1,5 +1,6 @@
 ﻿import { useMemo } from 'react';
 import { Item } from '../types';
+import { getItemCostPerDay } from '../utils/value';
 
 export type PriceHistoryStats = {
   latest: { date: string; price: number };
@@ -12,16 +13,10 @@ export type TimelineEntryBase = {
   item: Item;
   costPerDay: number;
   costPerUse: number;
+  daysUsed: number;
   showPerDay: boolean;
   showPerUse: boolean;
   priceHistoryStats: PriceHistoryStats | null;
-};
-
-const getDaysOwned = (dateStr: string) => {
-  const start = new Date(dateStr).getTime();
-  const now = Date.now();
-  const diff = now - start;
-  return Math.max(1, Math.floor(diff / (1000 * 60 * 60 * 24)));
 };
 
 const getPriceHistoryStats = (history?: { date: string; price: number }[]) => {
@@ -64,8 +59,7 @@ export const useTimelineGroups = (items: Item[], visibleCount: number) => {
     sortedItems.slice(0, visibleCount).forEach(item => {
       const key = getMonthKey(item.purchaseDate);
       const valueDisplay = item.valueDisplay || 'both';
-      const days = getDaysOwned(item.purchaseDate);
-      const costPerDay = item.price / days;
+      const { daysUsed, costPerDay } = getItemCostPerDay(item);
       const costPerUse = item.usageCount ? item.price / item.usageCount : item.price;
 
       if (!groups.has(key)) {
@@ -76,6 +70,7 @@ export const useTimelineGroups = (items: Item[], visibleCount: number) => {
         item,
         costPerDay,
         costPerUse,
+        daysUsed,
         showPerDay: valueDisplay !== 'use',
         showPerUse: valueDisplay !== 'day',
         priceHistoryStats: getPriceHistoryStats(item.priceHistory)

@@ -453,7 +453,7 @@ export const savePreferences = async (state: PersistedPreferencesSnapshot) => {
 };
 
 export const exportCSV = (items: Item[]): string => {
-  const headers = ['id', 'type', 'name', 'price', 'msrp', 'quantity', 'avgPrice', 'purchaseDate', 'status', 'category', 'channel', 'storeName', 'note', 'usageCount', 'priceHistory'];
+  const headers = ['id', 'type', 'name', 'price', 'msrp', 'quantity', 'avgPrice', 'purchaseDate', 'lastUsedDate', 'status', 'category', 'channel', 'storeName', 'note', 'usageCount', 'priceHistory'];
   const rows = items.map(item =>
     headers.map(key => {
       let val = (item as any)[key];
@@ -499,6 +499,7 @@ export const importCSV = (csv: string): Item[] => {
       if (!item.storeName) item.storeName = '';
       if (!item.quantity) item.quantity = 1;
       if (!item.avgPrice) item.avgPrice = item.quantity ? Number((item.price / item.quantity).toFixed(2)) : item.price;
+      if (!item.lastUsedDate) item.lastUsedDate = '';
       items.push(item as Item);
     }
   }

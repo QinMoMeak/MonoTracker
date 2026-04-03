@@ -375,3 +375,17 @@
     - [MOD] components/AddItemModal.tsx
     - [MOD] utils/imageProcessing.ts
   - APK output: android/app/build/outputs/apk/debug/app-debug.apk
+
+- 2026-04-03
+  - APK build version: 1.5.24 / 43 -> 1.5.25 / 44
+  - Diff doc: doc/BUILD_DIFF_1.5.25.md
+  - Changes?
+    - [ADD] utils/value.ts
+    - [MOD] App.tsx
+    - [MOD] components/AddItemModal.tsx
+    - [MOD] components/Timeline.tsx
+    - [MOD] constants.ts
+    - [MOD] hooks/useTimelineGroups.ts
+    - [MOD] services/storageService.ts
+    - [MOD] types.ts
+  - APK output: android/app/build/outputs/apk/debug/app-debug.apk

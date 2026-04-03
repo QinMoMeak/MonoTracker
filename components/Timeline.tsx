@@ -123,9 +123,10 @@ const TimelineItemCard = React.memo(({
   onPreviewImage?: (item: Item) => void | Promise<void>;
 }) => {
   const themeColors = THEMES[theme];
-  const { item, costPerDay, costPerUse, showPerDay, showPerUse, priceHistoryStats } = entry;
+  const { item, costPerDay, costPerUse, daysUsed, showPerDay, showPerUse, priceHistoryStats } = entry;
   const catConfig = CATEGORY_CONFIG[item.category] || CATEGORY_CONFIG.other;
   const catName = CATEGORY_CONFIG[item.category] ? TEXTS[catConfig.labelKey][language] : item.category;
+  const showDaysUsed = (item.valueDisplay || 'both') === 'day';
 
   return (
     <div
@@ -229,6 +230,16 @@ const TimelineItemCard = React.memo(({
               </div>
             )}
           </div>
+
+          {showDaysUsed && (
+            <div className="flex flex-col text-right">
+              <span className="opacity-50 text-[10px] uppercase">{TEXTS.daysUsed[language]}</span>
+              <span className="font-mono font-semibold">
+                {daysUsed}
+                {language === 'en' ? ` ${TEXTS.daysUsedUnit[language]}` : TEXTS.daysUsedUnit[language]}
+              </span>
+            </div>
+          )}
 
           {showPerUse && (
             <div className="flex items-center gap-2 bg-gray-50 dark:bg-slate-800 rounded-lg p-1 pl-3 pr-1">
