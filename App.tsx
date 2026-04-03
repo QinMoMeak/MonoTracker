@@ -411,6 +411,7 @@ const App: React.FC = () => {
       status: item.status || 'new',
       storeName: item.storeName || '',
       purchaseDate: normalizeDate(item.purchaseDate),
+      lastUsedDate: item.lastUsedDate ? normalizeDate(item.lastUsedDate) : '',
       imageThumb: item.imageThumb || item.image,
       hasImage: Boolean(item.image || item.imageThumb || item.hasImage)
     };
@@ -1011,7 +1012,8 @@ const App: React.FC = () => {
         discountRate: itemData.discountRate,
         channel: itemData.channel,
         priceHistory: itemData.priceHistory || [],
-        valueDisplay: itemData.valueDisplay || 'both'
+        valueDisplay: itemData.valueDisplay || 'both',
+        lastUsedDate: itemData.lastUsedDate || ''
       } as Item, { cacheImage: true });
       setItems(prev => [newItem, ...prev]);
     }

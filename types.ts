@@ -42,6 +42,7 @@ export interface Item {
   avgPrice: number;
   currency: string;
   purchaseDate: string; // ISO 8601 YYYY-MM-DD
+  lastUsedDate?: string; // ISO 8601 YYYY-MM-DD
   status: 'new' | 'used' | 'broken' | 'sold' | 'emptied' | string; // Relaxed to string for custom
   category: CategoryType;
   channel?: string; // New field for Purchase Channel
@@ -119,7 +120,6 @@ declare global {
     Android?: AndroidInterface;
   }
 }
-
 
 
 

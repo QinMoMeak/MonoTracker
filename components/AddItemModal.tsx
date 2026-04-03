@@ -45,7 +45,7 @@ const AddItemModal: React.FC<Props> = ({
 
   // Manual Form State
   const [formData, setFormData] = useState<Partial<Item>>({
-    name: '', price: 0, msrp: 0, quantity: 1, avgPrice: 0, note: '', link: '', storeName: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], priceHistory: [], valueDisplay: 'both'
+    name: '', price: 0, msrp: 0, quantity: 1, avgPrice: 0, note: '', link: '', storeName: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], lastUsedDate: '', priceHistory: [], valueDisplay: 'both'
   });
 
   const computeAvgPrice = (price: number, quantity: number) => {
@@ -79,7 +79,7 @@ const AddItemModal: React.FC<Props> = ({
         const quantity = Math.max(1, Math.floor(Number(initialItem.quantity || 1)));
         const price = typeof initialItem.price === 'number' ? initialItem.price : 0;
         const avgPrice = typeof initialItem.avgPrice === 'number' ? initialItem.avgPrice : computeAvgPrice(price, quantity);
-        setFormData({ ...initialItem, image: undefined, imageThumb: initialItem.imageThumb, quantity, avgPrice, storeName: initialItem.storeName || '', channel: normalizeChannelValue(initialItem.channel), valueDisplay: initialItem.valueDisplay || 'both' });
+        setFormData({ ...initialItem, image: undefined, imageThumb: initialItem.imageThumb, quantity, avgPrice, storeName: initialItem.storeName || '', channel: normalizeChannelValue(initialItem.channel), valueDisplay: initialItem.valueDisplay || 'both', lastUsedDate: initialItem.lastUsedDate || '' });
         if (initialItem.imageThumb) {
           setImageAssets([{
             savedDataUrl: '',
@@ -96,7 +96,7 @@ const AddItemModal: React.FC<Props> = ({
         // Use the passed initialMode (ai or manual)
         setMode(aiEnabled ? initialMode : 'manual');
         setFormData({ 
-          name: '', price: 0, msrp: 0, quantity: 1, avgPrice: 0, note: '', link: '', storeName: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], priceHistory: [], valueDisplay: 'both' 
+          name: '', price: 0, msrp: 0, quantity: 1, avgPrice: 0, note: '', link: '', storeName: '', status: 'new', category: 'other', channel: '', type: activeTab, purchaseDate: new Date().toISOString().split('T')[0], lastUsedDate: '', priceHistory: [], valueDisplay: 'both' 
         });
         clearImageAssets();
         setDesc('');
@@ -338,6 +338,7 @@ const AddItemModal: React.FC<Props> = ({
   const statusOptions = statuses.length ? statuses : ['new'];
   const allCategories = categories.length ? categories : ['other'];
   const showPriceHistory = formData.type === 'wishlist';
+  const showLastUsedDate = formData.type === 'owned' && (formData.valueDisplay || 'both') === 'day';
   const sortedPriceHistory = useMemo(() => {
     const current = Array.isArray(formData.priceHistory) ? formData.priceHistory : [];
     return [...current].sort((a, b) => a.date.localeCompare(b.date));
@@ -629,6 +630,21 @@ const AddItemModal: React.FC<Props> = ({
                     />
                 </div>
             </div>
+
+            {showLastUsedDate && (
+              <div>
+                <label className="text-xs font-bold text-gray-500 dark:text-gray-400 ml-2 mb-1 block uppercase">{TEXTS.lastUsedDate[language]}</label>
+                <div className="relative">
+                  <ICONS.Clock size={16} className="absolute left-4 top-4 text-gray-400" />
+                  <input
+                    type="date"
+                    value={formData.lastUsedDate || ''}
+                    onChange={e => setFormData({ ...formData, lastUsedDate: e.target.value })}
+                    className="w-full p-4 pl-10 bg-white dark:bg-slate-800 dark:text-white rounded-2xl border-none shadow-sm [color-scheme:light] dark:[color-scheme:dark]"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Category Selection */}
             <div>
