@@ -353,3 +353,25 @@
     - [MOD] components/Timeline.tsx
     - [MOD] constants.ts
   - APK output: android/app/build/outputs/apk/debug/app-debug.apk
+
+- 2026-04-03
+  - APK build version: 1.5.22 / 41 -> 1.5.23 / 42
+  - Diff doc: doc/BUILD_DIFF_1.5.23.md
+  - Changes?
+    - [ADD] doc/RELEASE_NOTES_1.5.22.md
+    - [MOD] App.tsx
+    - [MOD] components/AddItemModal.tsx
+    - [MOD] components/OwnedTabContainer.tsx
+    - [MOD] components/Timeline.tsx
+    - [MOD] components/WishlistTabContainer.tsx
+    - [MOD] services/storageService.ts
+    - [MOD] utils/imageProcessing.ts
+  - APK output: android/app/build/outputs/apk/debug/app-debug.apk
+
+- 2026-04-03
+  - APK build version: 1.5.23 / 42 -> 1.5.24 / 43
+  - Diff doc: doc/BUILD_DIFF_1.5.24.md
+  - Changes?
+    - [MOD] components/AddItemModal.tsx
+    - [MOD] utils/imageProcessing.ts
+  - APK output: android/app/build/outputs/apk/debug/app-debug.apk

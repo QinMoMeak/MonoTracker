@@ -110,22 +110,24 @@ const OwnedTabContainer: React.FC<Props> = ({
   useEffect(() => {
     if (!isActive || !onRequestImage) return undefined;
     let cancelled = false;
-
-    const prefetch = async () => {
-      const targets = filteredItems.filter(item => item.hasImage).slice(0, 12);
-      for (const item of targets) {
-        if (cancelled) break;
-        try {
-          await onRequestImage(item);
-        } catch {
-          // Ignore prefetch failures.
+    const timer = window.setTimeout(() => {
+      const prefetch = async () => {
+        const targets = filteredItems.filter(item => item.hasImage).slice(0, 6);
+        for (const item of targets) {
+          if (cancelled) break;
+          try {
+            await onRequestImage(item);
+          } catch {
+            // Ignore prefetch failures.
+          }
         }
-      }
-    };
+      };
 
-    void prefetch();
+      void prefetch();
+    }, 200);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [filteredItems, isActive, onRequestImage]);
 
@@ -236,6 +238,7 @@ const OwnedTabContainer: React.FC<Props> = ({
         items={filteredItems}
         theme={theme}
         language={language}
+        isActive={isActive}
         onEdit={onEdit}
         onDelete={onDelete}
         onAddUsage={onAddUsage}

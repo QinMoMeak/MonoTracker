@@ -63,6 +63,9 @@ const App: React.FC = () => {
   const pendingImageLoadsRef = useRef<Map<string, Promise<string | undefined>>>(new Map());
   const transientUrlTimeoutsRef = useRef<number[]>([]);
   const appMountedRef = useRef(true);
+  const isHandlingBackRef = useRef(false);
+  const imageLoadQueueRef = useRef<Array<() => void>>([]);
+  const activeImageLoadCountRef = useRef(0);
   const [mountedTabs, setMountedTabs] = useState({ owned: true, wishlist: false, stats: false });
   const [, startUiTransition] = useTransition();
 
@@ -391,7 +394,9 @@ const App: React.FC = () => {
     const safeQuantity = Math.max(1, Math.floor(toNumber((item as any).quantity) || 1));
     const computedAvg = safeQuantity > 0 ? Number((safePrice / safeQuantity).toFixed(2)) : safePrice;
     const safeAvg = toNumber((item as any).avgPrice) || computedAvg;
-    const id = item.id || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+    const id = item.id || (typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`);
     return {
       ...item,
       id,
@@ -436,16 +441,31 @@ const App: React.FC = () => {
       const pending = pendingImageLoadsRef.current.get(item.id);
       if (pending) return pending;
 
-      const task = loadItemImage(item.id)
-        .then(image => {
-          if (image) {
-            touchCachedImage(item.id!, image);
-          }
-          return image;
-        })
-        .finally(() => {
-          pendingImageLoadsRef.current.delete(item.id!);
-        });
+      const task = new Promise<string | undefined>((resolve, reject) => {
+        const run = () => {
+          activeImageLoadCountRef.current += 1;
+          loadItemImage(item.id)
+            .then(image => {
+              if (image) {
+                touchCachedImage(item.id!, image);
+              }
+              resolve(image);
+            })
+            .catch(reject)
+            .finally(() => {
+              activeImageLoadCountRef.current = Math.max(0, activeImageLoadCountRef.current - 1);
+              pendingImageLoadsRef.current.delete(item.id!);
+              const nextTask = imageLoadQueueRef.current.shift();
+              if (nextTask) nextTask();
+            });
+        };
+
+        if (activeImageLoadCountRef.current < 3) {
+          run();
+        } else {
+          imageLoadQueueRef.current.push(run);
+        }
+      });
 
       pendingImageLoadsRef.current.set(item.id, task);
       return task;
@@ -457,6 +477,8 @@ const App: React.FC = () => {
     appMountedRef.current = true;
     return () => {
       appMountedRef.current = false;
+      imageLoadQueueRef.current = [];
+      activeImageLoadCountRef.current = 0;
       transientUrlTimeoutsRef.current.forEach(handle => window.clearTimeout(handle));
       transientUrlTimeoutsRef.current = [];
     };
@@ -709,6 +731,42 @@ const App: React.FC = () => {
     setShowWebdavModal(false);
   };
 
+  const closeTopOverlay = useCallback(() => {
+    if (dialog) {
+      setDialog(null);
+      return true;
+    }
+    if (previewImage) {
+      setPreviewImage(null);
+      return true;
+    }
+    if (isAddModalOpen) {
+      closeAddModal();
+      return true;
+    }
+    if (showExportModal) {
+      closeExportModal();
+      return true;
+    }
+    if (showAiSettingsModal) {
+      closeAiSettingsModal();
+      return true;
+    }
+    if (showQuickStartModal) {
+      closeQuickStartModal();
+      return true;
+    }
+    if (showDataManageModal) {
+      closeDataManageModal();
+      return true;
+    }
+    if (showWebdavModal) {
+      closeWebdavModal();
+      return true;
+    }
+    return false;
+  }, [dialog, isAddModalOpen, previewImage, showAiSettingsModal, showDataManageModal, showExportModal, showQuickStartModal, showWebdavModal]);
+
   useEffect(() => {
     if (!showWebdavModal) return undefined;
     let cancelled = false;
@@ -724,7 +782,6 @@ const App: React.FC = () => {
     const src = await getResolvedItemImage(item) || item.imageThumb;
     if (!src || !appMountedRef.current) return;
     setPreviewImage({ src, name: item.name });
-    window.history.pushState(null, '', '');
   }, [getResolvedItemImage]);
 
   const closeImagePreview = () => {
@@ -732,45 +789,8 @@ const App: React.FC = () => {
   };
 
   const handleCloseImagePreview = () => {
-    window.history.back();
+    closeImagePreview();
   };
-
-  // --- History Handling (Back Gesture) ---
-  useEffect(() => {
-    const handlePopState = () => {
-      // If modal is open and user presses back, close it
-      if (previewImage) {
-        closeImagePreview();
-        return;
-      }
-      if (isAddModalOpen) {
-        closeAddModal();
-      }
-      if (showExportModal) {
-          closeExportModal();
-      }
-      if (showAiSettingsModal) {
-          closeAiSettingsModal();
-      }
-      if (showQuickStartModal) {
-          closeQuickStartModal();
-      }
-      if (showDataManageModal) {
-          closeDataManageModal();
-      }
-      if (showWebdavModal) {
-          closeWebdavModal();
-      }
-    };
-
-    if (previewImage || isAddModalOpen || showExportModal || showAiSettingsModal || showQuickStartModal || showDataManageModal || showWebdavModal) {
-      window.addEventListener('popstate', handlePopState);
-    }
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showQuickStartModal, showDataManageModal, showWebdavModal]);
 
   const autoBackupInFlight = useRef(false);
 
@@ -811,23 +831,18 @@ const App: React.FC = () => {
   useEffect(() => {
     let disposed = false;
     let removeHandle: (() => void) | null = null;
-    const handler = ({ canGoBack }: { canGoBack: boolean }) => {
-      if (dialog) {
-        setDialog(null);
-        return;
-      }
-      if (previewImage) {
-        window.history.back();
-        return;
-      }
-      if (isAddModalOpen || showExportModal || showAiSettingsModal || showQuickStartModal || showDataManageModal || showWebdavModal) {
-        window.history.back();
-        return;
-      }
-      if (canGoBack) {
-        window.history.back();
-      } else {
-        CapacitorApp.exitApp();
+    const handler = async () => {
+      if (isHandlingBackRef.current) return;
+      isHandlingBackRef.current = true;
+      try {
+        if (closeTopOverlay()) return;
+        await CapacitorApp.exitApp();
+      } finally {
+        queueMicrotask(() => {
+          if (!disposed) {
+            isHandlingBackRef.current = false;
+          }
+        });
       }
     };
 
@@ -845,31 +860,7 @@ const App: React.FC = () => {
       disposed = true;
       removeHandle?.();
     };
-  }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showQuickStartModal, showDataManageModal, showWebdavModal]);
-
-  useEffect(() => {
-    const handleBackButton = (event: Event) => {
-      if (dialog) {
-        event.preventDefault();
-        setDialog(null);
-        return;
-      }
-      if (previewImage) {
-        event.preventDefault();
-        window.history.back();
-        return;
-      }
-      if (isAddModalOpen || showExportModal || showAiSettingsModal || showQuickStartModal || showDataManageModal || showWebdavModal) {
-        event.preventDefault();
-        window.history.back();
-      }
-    };
-
-    document.addEventListener('backbutton', handleBackButton);
-    return () => {
-      document.removeEventListener('backbutton', handleBackButton);
-    };
-  }, [dialog, previewImage, isAddModalOpen, showExportModal, showAiSettingsModal, showQuickStartModal, showDataManageModal, showWebdavModal]);
+  }, [closeTopOverlay]);
 
   useEffect(() => {
     if (!aiConfig.provider || aiConfig.provider === 'disabled') return;
@@ -992,7 +983,9 @@ const App: React.FC = () => {
         dropCachedImage(itemData.id);
       }
     } else {
-      const newId = Date.now().toString();
+      const newId = typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
       const quantity = Math.max(1, Math.floor(toNumber(itemData.quantity as any) || 1));
       const price = itemData.price || 0;
       const avgPrice = itemData.avgPrice ?? Number((price / quantity).toFixed(2));
@@ -1023,66 +1016,54 @@ const App: React.FC = () => {
       setItems(prev => [newItem, ...prev]);
     }
     closeAddModal();
-    window.history.back();
   }, [activeTab, dropCachedImage, language, prepareItemForState]);
 
-  const handleEditItem = useCallback(async (item: Item) => {
-      const resolvedImage = await getResolvedItemImage(item);
-      if (!appMountedRef.current) return;
-      setEditingItem(resolvedImage ? { ...item, image: resolvedImage } : item);
+  const handleEditItem = useCallback((item: Item) => {
+      setEditingItem(item);
       setInitialAddMode('manual');
       setIsAddModalOpen(true);
-      // Push state to allow back button to close modal
-      window.history.pushState(null, '', '');
-  }, [getResolvedItemImage]);
+  }, []);
 
   const handleOpenAdd = (mode: 'ai' | 'manual') => {
       setEditingItem(null);
       setInitialAddMode(aiEnabled ? mode : 'manual');
       setIsAddModalOpen(true);
-      // Push state to allow back button to close modal
-      window.history.pushState(null, '', '');
   };
 
   const handleCloseModal = () => {
-      // Go back in history (triggers popstate listener to close modal)
-      window.history.back();
+      closeAddModal();
   };
 
   const handleOpenAiSettings = () => {
       setShowAiSettingsModal(true);
-      window.history.pushState(null, '', '');
   };
 
   const handleCloseAiSettings = () => {
-      window.history.back();
+      closeAiSettingsModal();
   };
 
   const handleOpenQuickStart = () => {
       setShowQuickStartModal(true);
-      window.history.pushState(null, '', '');
   };
 
   const handleCloseQuickStart = () => {
-      window.history.back();
+      closeQuickStartModal();
   };
 
   const handleOpenDataManage = () => {
       setShowDataManageModal(true);
-      window.history.pushState(null, '', '');
   };
 
   const handleCloseDataManage = () => {
-      window.history.back();
+      closeDataManageModal();
   };
 
   const handleOpenWebdav = () => {
       setShowWebdavModal(true);
-      window.history.pushState(null, '', '');
   };
 
   const handleCloseWebdav = () => {
-      window.history.back();
+      closeWebdavModal();
   };
 
   const quickStartSteps = [
@@ -1263,11 +1244,10 @@ const App: React.FC = () => {
       const csvContent = '\ufeff' + csv; // Add BOM
       setExportData(csvContent);
       setShowExportModal(true);
-      window.history.pushState(null, '', '');
   };
 
   const handleCloseExportModal = () => {
-      window.history.back();
+      closeExportModal();
   };
 
     const executeFileSave = async () => {
